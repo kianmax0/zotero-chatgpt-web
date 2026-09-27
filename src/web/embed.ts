@@ -1,0 +1,563 @@
+/**
+ * Chat mode's surface is the real ChatGPT web application, not a reimplementation.
+ *
+ * The conversation, streaming, history, model picker, uploads, and account session belong to
+ * chatgpt.com. This module only positions a Zotero-owned browser and brokers deliberate context.
+ *
+ * Why a chrome `<browser>` and not an `iframe`: `chatgpt.com` refuses framing (X-Frame-Options /
+ * CSP frame-ancestors) and busts out of frames, and a XUL element cannot be created inside the
+ * reader's HTML document at all ("Component is not available"; the host probe in
+ * `tests/host/embed-driver.js` records both). Zotero's own remote-page surfaces are chrome
+ * `<browser>` elements created in a *XUL* document — the reader tab uses `src` and the viewer window
+ * `Zotero.openInViewer()` uses `loadURI`. This module does the first of those, in the main window,
+ * and paints the result over the sidebar region the dock reserves for it: the host probe records the
+ * same URL loading through `src` while a `loadURI` against a freshly created browser is dropped.
+ *
+ * Hiding only parks the page, preserving its official session and unsent draft. The document is
+ * destroyed when the owning Zotero window closes or an idle surface is evicted.
+ */
+
+import type { PaperMetadata } from '../model.ts';
+import { composeOfficialChatPrompt, isOfficialChatURL } from './prompt.ts';
+import { OFFICIAL_CHAT_ACTOR, OFFICIAL_CHAT_BRIDGE_EVENT } from './actor.ts';
+import { canonicalOfficialConversationURL } from './history.ts';
+
+/** Marks the chrome browser so host tests and diagnostics can address it without private state. */
+export const CHAT_EMBED_ATTR = 'data-zchatgptweb-embed-browser';
+/** Marks the HTML box the browser is painted in; the box, not the browser, carries the geometry. */
+export const CHAT_EMBED_CONTAINER_ATTR = 'data-zchatgptweb-embed-container';
+/** Per-surface transaction binding checked again after asynchronous PDF preparation. */
+export const CHAT_EMBED_BINDING_ATTR = 'data-zchatgptweb-embed-binding';
+/** The application Chat mode hosts. No API key, no custom base URL, no token is involved. */
+export const CHAT_APP_URL = 'https://chatgpt.com/';
+// These exact HTTPS hosts may receive ordinary login clicks, never PDF context or actor commands.
+// Google sign-in leaves auth.openai.com before returning to the official ChatGPT application.
+const OFFICIAL_CHAT_AUTH_HOSTS = new Set(['auth.openai.com', 'appleid.apple.com', 'accounts.google.com']);
+/** Free/stale-layout safety net while the surface is painted, in milliseconds. */
+const SYNC_INTERVAL_MS = 500;
+/**
+ * Where the box sits while the sidebar is not showing it. The application is not unloaded then — the
+ * session, the cookies and the open conversation are the whole point of hosting it — so the box is
+ * kept off-screen at a real size rather than collapsed, which is what keeps its document live.
+ */
+const PARKED_LEFT = -20000;
+const PARKED_WIDTH = 480;
+const PARKED_HEIGHT = 720;
+
+/** The subset of Zotero's XUL `<browser>` this module drives. */
+interface ChromeBrowser extends Element {
+  currentURI: { spec: string } | null;
+  contentTitle: string;
+  webProgress: { isLoadingDocument: boolean } | null;
+  webNavigation?: { reload(flags: number): void } | null;
+  browsingContext?: { currentWindowGlobal?: { getActor(name: string): { sendQuery(name: string, data?: unknown): Promise<unknown> } } | null } | null;
+  reloadWithFlags?(flags: number): void;
+  style: CSSStyleDeclaration;
+  setAttribute(name: string, value: string): void;
+}
+
+export interface ChatEmbedSnapshot {
+  /** The application document currently in the surface, or null before the first navigation. */
+  url: string | null;
+  /** True while the browser reports a document still loading. */
+  loading: boolean;
+  /** True once a document is present and settled; the page's own script wrote its title. */
+  loaded: boolean;
+}
+
+export interface ChatEmbedSurface {
+  /**
+   * Paint the surface over `anchor`, an element inside the dock. `frame` is the chrome element that
+   * hosts the document `anchor` lives in (the reader's own `<browser>`), because rects measured in
+   * that document are relative to its viewport, not to the window this surface is painted in.
+   */
+  show(anchor: Element, frame: Element | null): void;
+  /** Stop painting without unloading the page, keeping the session and the open conversation. */
+  hide(): void;
+  /** Re-measure and repaint; safe to call on any host layout or tab change. */
+  sync(): void;
+  /** Force a fresh navigation of the application document. */
+  reload(): void;
+  newChat(): Promise<boolean>;
+  readiness(): string;
+  onStatus(listener: ((status: string, reason?: string) => void) | null): void;
+  /** Bind the visible reader/PDF generation to future user-triggered official-composer sends. */
+  bindContext(binding: string, prepare: OfficialChatContextProvider): void;
+  /** Put a frozen Zotero selection in the official composer without sending it. */
+  stage(text: string): Promise<OfficialChatCommandOutcome>;
+  /** User-triggered More details: submit through the same official composer and context hook. */
+  submitQuestion(question: string): Promise<OfficialChatCommandOutcome>;
+  /** Persist and restore ChatGPT's own conversation URL separately for this paper binding. */
+  bindConversation(binding: string, savedURL: string | null, remember: (url: string) => void): void;
+  /** Cached actor-proven idle state for the bounded per-window surface pool. */
+  evictable(): boolean;
+  snapshot(): ChatEmbedSnapshot;
+  destroy(): void;
+}
+
+export type OfficialChatContextResult = {
+  status: 'ready';
+  metadata: PaperMetadata | null;
+  selectedText: string | null;
+} | { status: 'allow' } | { status: 'blocked'; reason: 'context-disabled' | 'context-empty' | 'context-failed' };
+
+export type OfficialChatContextProvider = (question: string) => Promise<OfficialChatContextResult>;
+export type OfficialChatCommandOutcome = { status: string; reason?: string };
+
+interface Rect { left: number; top: number; width: number; height: number }
+
+function xulDocument(doc: Document): { createXULElement(tag: string): Element } {
+  const candidate = doc as unknown as { createXULElement?(tag: string): Element };
+  if (typeof candidate.createXULElement !== 'function') throw new Error('The embedded Chat surface needs a XUL document.');
+  return candidate as { createXULElement(tag: string): Element };
+}
+
+/** Border widths so a host element's content box, not its border box, is the origin. */
+function contentOrigin(element: Element): { x: number; y: number } {
+  const box = element as Element & { clientLeft?: number; clientTop?: number };
+  return { x: box.clientLeft ?? 0, y: box.clientTop ?? 0 };
+}
+
+function rectOf(element: Element): Rect | null {
+  let rect: DOMRect;
+  try { rect = element.getBoundingClientRect(); } catch { return null; }
+  if (!Number.isFinite(rect.width) || !Number.isFinite(rect.height)) return null;
+  if (rect.width < 1 || rect.height < 1) return null;
+  return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
+}
+
+function isOfficialAuthNavigation(value: string | null | undefined): boolean {
+  if (!value) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && OFFICIAL_CHAT_AUTH_HOSTS.has(url.hostname)
+      && !url.username && !url.password && (!url.port || url.port === '443');
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Create the Chat surface in `win`. Construction creates the browser, parks it off-screen at a real
+ * size and starts the one navigation to the application; painting only moves the box.
+ */
+export function createChatEmbedSurface(win: Window, url: string = CHAT_APP_URL): ChatEmbedSurface {
+  const doc = win.document;
+  const browser = xulDocument(doc).createXULElement('browser') as ChromeBrowser;
+  // The attribute set Zotero's own remote-page viewer carries; without it the document stays at
+  // about:blank, which the host probe demonstrates for the same element without them.
+  browser.setAttribute('type', 'content');
+  browser.setAttribute('remote', 'false');
+  browser.setAttribute('disableglobalhistory', 'true');
+  browser.setAttribute('maychangeremoteness', 'true');
+  browser.setAttribute('messagemanagergroup', 'zchatgptweb');
+  browser.setAttribute('class', 'zchatgptweb-embed-browser');
+  browser.setAttribute(CHAT_EMBED_ATTR, '');
+  browser.setAttribute('data-zchatgptweb-embed-state', 'idle');
+  browser.setAttribute('aria-label', 'ChatGPT');
+  const surfaceBinding = win.crypto.randomUUID();
+  browser.setAttribute(CHAT_EMBED_BINDING_ATTR, surfaceBinding);
+  browser.style.cssText = 'display:block;width:100%;height:100%;border:0;';
+  // Keep the page gated until its actor answers. Once the actor is present, unsupported bridge
+  // commands and recognized send intents are blocked without disabling every website control.
+  browser.style.pointerEvents = 'none';
+  // The browser hangs off an HTML div rather than the window root: the main window is a XUL document,
+  // and an HTML div is the box whose geometry CSS actually controls there — the host probe loads the
+  // application in exactly this shape and not in a zero-sized or window-root one.
+  const container = doc.createElement('div');
+  container.setAttribute(CHAT_EMBED_CONTAINER_ATTR, '');
+  container.style.cssText = `position:fixed;left:${PARKED_LEFT}px;top:0px;width:${PARKED_WIDTH}px;height:${PARKED_HEIGHT}px;overflow:hidden;border:0;margin:0;padding:0;z-index:2147483000;background:#fff;`;
+  // `src` is the navigation Zotero's own reader tab uses, and it is set before the element is
+  // connected so the document and the frame are created together. It is also why the application
+  // loads while the surface is parked: the ChatGPT session, its cookies and its open conversation
+  // belong to this document, and the dock being closed is not a reason to unload them.
+  browser.setAttribute('data-zchatgptweb-embed-state', 'loading');
+  browser.setAttribute('src', url);
+  container.append(browser);
+  (doc.body ?? doc.documentElement).append(container);
+
+  /** Navigate an already-loaded document again, preferring the browser's own reload. */
+  const renavigate = (): void => {
+    browser.setAttribute('data-zchatgptweb-embed-state', 'loading');
+    try {
+      if (typeof browser.webNavigation?.reload === 'function') { browser.webNavigation.reload(0); return; }
+      if (typeof browser.reloadWithFlags === 'function') { browser.reloadWithFlags(0); return; }
+    } catch { /* the flags-based path is not available, so navigate from the URL below */ }
+    browser.setAttribute('src', url);
+  };
+
+  let anchor: Element | null = null;
+  let frame: Element | null = null;
+  let painted: string | null = null;
+  let destroyed = false;
+  let timer: number | null = null;
+  let resizeObserver: { disconnect(): void } | null = null;
+  let contextBinding: string | null = null;
+  let contextProvider: OfficialChatContextProvider | null = null;
+  let contextGeneration = 0;
+  let activeMarker: { marker: string; generation: number } | null = null;
+  let conversationBinding: string | null = null;
+  let rememberConversation: ((url: string) => void) | null = null;
+  let rememberedURL: string | null = null;
+  let conversationGeneration = 0;
+  let pendingRestore: { generation: number; target: string; canonical: string | null; issued: boolean } | null = null;
+  let restoreFlight = false;
+  let restoreAfter = 0;
+  let probedWindowGlobal: unknown = null;
+  let bridgeProbeFlight = false;
+  let bridgeProbeAfter = 0;
+  let operations = 0;
+  let bridgeIdle = false;
+  let statusListener: ((status: string, reason?: string) => void) | null = null;
+  // The size the application's own layout is given. It is the parked size until the dock paints, and
+  // keeps the last painted size afterwards so hiding and showing does not resize the document.
+  let box: { width: number; height: number } = { width: PARKED_WIDTH, height: PARKED_HEIGHT };
+
+  const topDocument = win.document;
+
+  /** Move the box out of the way without unloading it: a rendered box is what keeps it live. */
+  function park(): void {
+    container.style.left = `${PARKED_LEFT}px`;
+    container.style.top = '0px';
+    container.style.width = `${box.width}px`;
+    container.style.height = `${box.height}px`;
+  }
+
+  /** Pin the surface to the anchor's live rect, or stop painting when that rect is gone. */
+  const sync = (): void => {
+    if (destroyed) return;
+    trackConversation();
+    if (!anchor || !anchor.isConnected) { retract(); return; }
+    const anchorRect = rectOf(anchor);
+    if (!anchorRect) { retract(); return; }
+    let originX = 0;
+    let originY = 0;
+    if (frame) {
+      const frameRect = rectOf(frame);
+      if (!frameRect) { retract(); return; }
+      const origin = contentOrigin(frame);
+      originX = frameRect.left + origin.x;
+      originY = frameRect.top + origin.y;
+    }
+    const next: Rect = {
+      left: Math.round(originX + anchorRect.left),
+      top: Math.round(originY + anchorRect.top),
+      width: Math.round(anchorRect.width),
+      height: Math.round(anchorRect.height),
+    };
+    // A dock that is not on the selected tab is hidden by Zotero, so its frame measures zero and the
+    // surface must not keep floating over whatever the user is actually looking at.
+    if (next.left >= win.innerWidth || next.top >= win.innerHeight) { retract(); return; }
+    const key = `${next.left}:${next.top}:${next.width}:${next.height}`;
+    if (key === painted) return;
+    painted = key;
+    box = { width: next.width, height: next.height };
+    container.style.left = `${next.left}px`;
+    container.style.top = `${next.top}px`;
+    container.style.width = `${next.width}px`;
+    container.style.height = `${next.height}px`;
+    browser.setAttribute('data-zchatgptweb-embed-painted', `${next.width}x${next.height}`);
+  };
+
+  /** Stop painting; the page and its session stay exactly as they are. */
+  function retract(): void {
+    if (painted === null) return;
+    painted = null;
+    browser.setAttribute('data-zchatgptweb-embed-painted', '');
+    park();
+  }
+
+  const observe = (): void => {
+    resizeObserver?.disconnect();
+    resizeObserver = null;
+    const view = topDocument.defaultView as (Window & { ResizeObserver?: typeof ResizeObserver }) | null;
+    const Observer = view?.ResizeObserver;
+    if (typeof Observer !== 'function') return;
+    const observer = new Observer(() => sync());
+    const watched = new Set<Element>();
+    if (anchor) watched.add(anchor);
+    if (frame) watched.add(frame);
+    for (const element of watched) observer.observe(element);
+    resizeObserver = observer;
+  };
+
+  const tick = (): void => {
+    if (destroyed) { stopTimer(); return; }
+    sync();
+    const loading = browser.webProgress?.isLoadingDocument ?? false;
+    const current = browser.currentURI?.spec ?? null;
+    const loaded = Boolean(current) && !loading && String(browser.contentTitle ?? '').length > 0;
+    browser.setAttribute('data-zchatgptweb-embed-state', loading ? 'loading' : loaded ? 'loaded' : 'idle');
+    trackConversation();
+    const windowGlobal = browser.browsingContext?.currentWindowGlobal ?? null;
+    if (windowGlobal !== probedWindowGlobal) {
+      probedWindowGlobal = windowGlobal;
+      bridgeIdle = false;
+      if (isOfficialAuthNavigation(browser.currentURI?.spec)) {
+        // Authentication is ordinary remote-page interaction. The PDF bridge stays unavailable on
+        // this origin, but the page itself must remain clickable for account and 2FA controls.
+        browser.style.pointerEvents = 'auto';
+        browser.setAttribute('data-zchatgptweb-bridge-ready', 'auth-navigation');
+        announce('login-required');
+      } else {
+        browser.style.pointerEvents = 'none';
+        browser.setAttribute('data-zchatgptweb-bridge-ready', 'checking');
+      }
+      bridgeProbeAfter = 0;
+    }
+    if (!isOfficialAuthNavigation(browser.currentURI?.spec) && Date.now() >= bridgeProbeAfter) void probeBridge();
+    if (!isOfficialAuthNavigation(browser.currentURI?.spec) && pendingRestore && Date.now() >= restoreAfter) void tryRestoreConversation();
+  };
+
+  const stopTimer = (): void => { if (timer !== null) { win.clearInterval(timer); timer = null; } };
+
+  const officialDocument = (): boolean => isOfficialChatURL(browser.currentURI?.spec ?? null);
+  const announce = (status: string, reason?: string): void => { statusListener?.(status, reason); };
+  const actor = (): { sendQuery(name: string, data?: unknown): Promise<unknown> } | null => {
+    if (!officialDocument() || browser.getAttribute(CHAT_EMBED_BINDING_ATTR) !== surfaceBinding) return null;
+    try { return browser.browsingContext?.currentWindowGlobal?.getActor(OFFICIAL_CHAT_ACTOR) ?? null; }
+    catch { return null; }
+  };
+
+  const probeBridge = async (): Promise<void> => {
+    if (bridgeProbeFlight) return;
+    if (isOfficialAuthNavigation(browser.currentURI?.spec)) return;
+    const target = actor();
+    const windowGlobal = browser.browsingContext?.currentWindowGlobal ?? null;
+    if (!target || !windowGlobal) { bridgeProbeAfter = Date.now() + 2000; return; }
+    bridgeProbeFlight = true;
+    try {
+      const result = await target.sendQuery('probe').catch(() => null) as { status?: unknown } | null;
+      if (browser.browsingContext?.currentWindowGlobal !== windowGlobal || !officialDocument()) return;
+      const status = typeof result?.status === 'string' ? result.status : 'actor-unavailable';
+      bridgeIdle = !pendingRestore && ['ready', 'composer-ready', 'composer-missing'].includes(status);
+      if (bridgeIdle) activeMarker = null;
+      // A loading/login page can have no composer or an unknown editor. The actor blocks all
+      // outside clicks while an unknown editor holds a draft; an empty page remains usable.
+      const interactive = ['loading', 'login-required', 'challenge-required', 'composer-missing', 'unsupported-composer', 'ambiguous-composer', 'unsupported-send', 'ambiguous-send'].includes(status)
+        || (!pendingRestore && ['ready', 'composer-ready', 'draft', 'busy', 'generating'].includes(status));
+      browser.style.pointerEvents = interactive ? 'auto' : 'none';
+      browser.setAttribute('data-zchatgptweb-bridge-ready', status);
+      announce(status);
+      bridgeProbeAfter = Date.now() + (status === 'ready' ? 5000 : 2000);
+    } finally {
+      bridgeProbeFlight = false;
+    }
+  };
+
+  const restoreReached = (restore: NonNullable<typeof pendingRestore>): boolean => {
+    const current = browser.currentURI?.spec ?? null;
+    return restore.canonical ? canonicalOfficialConversationURL(current) === restore.canonical : current === CHAT_APP_URL;
+  };
+  const trackConversation = (): void => {
+    if (pendingRestore) {
+      if (!restoreReached(pendingRestore)) return;
+      rememberedURL = pendingRestore.canonical;
+      pendingRestore = null;
+    }
+    const current = canonicalOfficialConversationURL(browser.currentURI?.spec ?? null);
+    if (!current || !rememberConversation || current === rememberedURL) return;
+    try { rememberConversation(current); rememberedURL = current; }
+    catch { bridgeIdle = false; }
+  };
+  const tryRestoreConversation = async (): Promise<void> => {
+    const restore = pendingRestore;
+    if (!restore || restore.issued || restoreFlight || restore.generation !== conversationGeneration) return;
+    if (isOfficialAuthNavigation(browser.currentURI?.spec)) { restoreAfter = Date.now() + 5000; return; }
+    if (restoreReached(restore)) { trackConversation(); return; }
+    const target = actor();
+    const windowGlobal = browser.browsingContext?.currentWindowGlobal ?? null;
+    if (!target || !windowGlobal) { restoreAfter = Date.now() + 5000; return; }
+    restoreFlight = true;
+    try {
+      const probe = await target.sendQuery('probe').catch(() => null) as { status?: unknown } | null;
+      if (pendingRestore !== restore || restore.generation !== conversationGeneration
+          || browser.browsingContext?.currentWindowGlobal !== windowGlobal || !officialDocument()) return;
+      // Busy covers local PDF preparation; generating covers an accepted turn whose answer is still
+      // streaming. Neither may be navigated away by a reader switch.
+      if (probe?.status !== 'ready' && probe?.status !== 'composer-ready') { restoreAfter = Date.now() + 5000; return; }
+      restore.issued = true;
+      browser.setAttribute('src', restore.target);
+    } finally {
+      restoreFlight = false;
+    }
+  };
+
+  /** The parent actor dispatches only this local event on this exact browser element. */
+  const onBridge = (event: Event): void => {
+    if (event.target !== browser || !officialDocument() || browser.getAttribute(CHAT_EMBED_BINDING_ATTR) !== surfaceBinding) return;
+    const detail = (event as CustomEvent).detail as Record<string, unknown> | null;
+    if (!detail || detail.binding !== surfaceBinding) return;
+    if (detail.kind === 'readiness') {
+      const status = detail.status;
+      if (status === 'ready' || status === 'composer-ready') {
+        bridgeIdle = !pendingRestore;
+        browser.style.pointerEvents = pendingRestore ? 'none' : 'auto';
+        browser.setAttribute('data-zchatgptweb-bridge-ready', pendingRestore ? 'restoring' : status);
+      } else if (status === 'draft') {
+        bridgeIdle = false;
+        browser.style.pointerEvents = pendingRestore ? 'none' : 'auto';
+        browser.setAttribute('data-zchatgptweb-bridge-ready', pendingRestore ? 'restoring' : 'draft');
+      } else if (status === 'unsupported-send') {
+        bridgeIdle = false;
+        // The actor already cancelled this send. Keep the page available for login, navigation and
+        // draft edits; the next unsupported send remains blocked by the same capture handler.
+        browser.style.pointerEvents = 'auto';
+        browser.setAttribute('data-zchatgptweb-bridge-ready', 'unsupported-send');
+        announce('unsupported-send');
+      }
+      return;
+    }
+    if (detail.kind === 'status') {
+      const status = detail.status;
+      if (typeof status === 'string' && ['accepted', 'accepted-without-context', 'not-accepted', 'composer-missing', 'submit-missing', 'context-blocked'].includes(status)) {
+        // A late acknowledgement belongs to the PDF generation that prepared its marker. Switching
+        // readers clears `activeMarker`, so paper A can never paint "attached" on paper B.
+        if (typeof detail.marker === 'string' && activeMarker?.marker === detail.marker && activeMarker.generation === contextGeneration) {
+          bridgeIdle = false;
+          browser.setAttribute('data-zchatgptweb-bridge-status', status);
+          announce(status, typeof detail.reason === 'string' ? detail.reason : undefined);
+        }
+      }
+      return;
+    }
+    if (detail.kind !== 'prepare' || typeof detail.question !== 'string' || typeof detail.transaction !== 'string' || typeof detail.respond !== 'function') return;
+    const respond = detail.respond as (value: unknown) => void;
+    if (pendingRestore) { respond({ status: 'blocked', reason: 'context-changed', marker: detail.transaction }); return; }
+    const question = detail.question;
+    const generation = contextGeneration;
+    const binding = contextBinding;
+    const provider = contextProvider;
+    if (!provider || !binding) { respond({ status: 'blocked', reason: 'context-changed' }); return; }
+    const marker = detail.transaction;
+    bridgeIdle = false;
+    activeMarker = { marker, generation };
+    browser.setAttribute('data-zchatgptweb-bridge-status', 'preparing');
+    announce('preparing');
+    void provider(question).then(result => {
+      if (generation !== contextGeneration || binding !== contextBinding || provider !== contextProvider
+          || pendingRestore || !officialDocument() || browser.getAttribute(CHAT_EMBED_BINDING_ATTR) !== surfaceBinding) {
+        respond({ status: 'blocked', reason: 'context-changed', marker }); return;
+      }
+      if (result.status === 'allow') { respond({ status: 'allow', marker }); return; }
+      if (result.status === 'blocked') { respond({ ...result, marker }); return; }
+      respond({ status: 'prepared', marker, hasAutomaticContext: Boolean(result.metadata), text: composeOfficialChatPrompt({
+        question, metadata: result.metadata, selectedText: result.selectedText,
+        requestMarker: marker,
+      }) });
+    }).catch(() => { respond({ status: 'blocked', reason: 'context-failed', marker }); });
+  };
+  browser.addEventListener(OFFICIAL_CHAT_BRIDGE_EVENT, onBridge);
+
+  const queryActor = async (name: 'stage' | 'submitQuestion', data: Record<string, string>): Promise<OfficialChatCommandOutcome> => {
+    if (pendingRestore) return { status: 'blocked', reason: 'context-changed' };
+    const target = actor();
+    if (!target) return { status: 'blocked', reason: 'context-changed' };
+    operations += 1; bridgeIdle = false;
+    const windowGlobal = browser.browsingContext?.currentWindowGlobal ?? null;
+    let result: unknown;
+    try { result = await target.sendQuery(name, data).catch(() => ({ status: 'blocked', reason: 'context-failed' })); }
+    finally { operations -= 1; }
+    // ChatGPT's first accepted message changes `/` to `/c/<id>` in the same document. That is an
+    // expected SPA route change; a replacement WindowGlobal is the navigation boundary to reject.
+    if (windowGlobal === null || browser.browsingContext?.currentWindowGlobal !== windowGlobal
+        || pendingRestore || !officialDocument() || browser.getAttribute(CHAT_EMBED_BINDING_ATTR) !== surfaceBinding) {
+      return { status: 'blocked', reason: 'context-changed' };
+    }
+    if (!result || typeof result !== 'object' || typeof (result as Record<string, unknown>).status !== 'string') return { status: 'blocked', reason: 'context-failed' };
+    const value = result as Record<string, unknown>;
+    const outcome = { status: value.status as string, ...(typeof value.reason === 'string' ? { reason: value.reason } : {}) };
+    if (name === 'stage' && outcome.status === 'staged') announce('staged');
+    return outcome;
+  };
+
+  const surface: ChatEmbedSurface = {
+    onStatus(listener) { statusListener = listener; },
+    readiness() { return browser.getAttribute('data-zchatgptweb-bridge-ready') || 'loading'; },
+    show(nextAnchor, nextFrame) {
+      if (destroyed) return;
+      const changed = anchor !== nextAnchor || frame !== (nextFrame ?? null);
+      anchor = nextAnchor;
+      frame = nextFrame ?? null;
+      if (changed) observe();
+      sync();
+      // The frame can be re-laid-out by anything (window resize, dock resize, tab switch, reader
+      // toolbar rewrap) and two of those are not observable from this window, so a slow poll keeps
+      // the surface on its anchor while it is painted. Hiding stops the poll and showing starts it
+      // again, so a parked surface never keeps waking this window up.
+      if (timer === null) timer = win.setInterval(tick, SYNC_INTERVAL_MS);
+      void probeBridge();
+    },
+    hide() { anchor = null; frame = null; resizeObserver?.disconnect(); resizeObserver = null; retract(); stopTimer(); },
+    sync,
+    reload() { browser.style.pointerEvents = 'none'; probedWindowGlobal = null; bridgeProbeAfter = 0; renavigate(); },
+    async newChat() {
+      const target = actor();
+      if (!target || pendingRestore) return false;
+      const result = await target.sendQuery('probe').catch(() => null) as { status?: string } | null;
+      if (!['ready', 'composer-ready'].includes(result?.status ?? '')) return false;
+      conversationGeneration += 1;
+      rememberedURL = null;
+      pendingRestore = { generation: conversationGeneration, target: CHAT_APP_URL, canonical: null, issued: true };
+      browser.style.pointerEvents = 'none';
+      browser.setAttribute('data-zchatgptweb-bridge-ready', 'loading');
+      browser.setAttribute('src', CHAT_APP_URL);
+      return true;
+    },
+    bindContext(binding, prepare) {
+      if (contextBinding === binding && contextProvider === prepare) return;
+      contextBinding = binding; contextProvider = prepare; contextGeneration += 1;
+      activeMarker = null;
+      browser.setAttribute('data-zchatgptweb-bridge-status', 'idle');
+      browser.setAttribute('data-zchatgptweb-context-binding', binding);
+    },
+    stage(text) { return queryActor('stage', { text }); },
+    submitQuestion(question) { return queryActor('submitQuestion', { question }); },
+    bindConversation(binding, savedURL, remember) {
+      if (conversationBinding === binding) { rememberConversation = remember; trackConversation(); if (pendingRestore) void tryRestoreConversation(); return; }
+      trackConversation();
+      conversationBinding = binding; rememberConversation = remember; conversationGeneration += 1;
+      rememberedURL = canonicalOfficialConversationURL(savedURL);
+      const current = canonicalOfficialConversationURL(browser.currentURI?.spec ?? null);
+      const target = rememberedURL ?? CHAT_APP_URL;
+      pendingRestore = (rememberedURL ? current !== rememberedURL : current !== null)
+        ? { generation: conversationGeneration, target, canonical: rememberedURL, issued: false }
+        : null;
+      restoreAfter = 0;
+      if (pendingRestore) {
+        bridgeIdle = false;
+        if (isOfficialAuthNavigation(browser.currentURI?.spec)) {
+          browser.style.pointerEvents = 'auto';
+          browser.setAttribute('data-zchatgptweb-bridge-ready', 'auth-navigation');
+        } else {
+          browser.style.pointerEvents = 'none';
+          browser.setAttribute('data-zchatgptweb-bridge-ready', 'restoring');
+          void tryRestoreConversation();
+        }
+      }
+    },
+    evictable() {
+      trackConversation();
+      return anchor === null && !pendingRestore && !restoreFlight && !bridgeProbeFlight
+        && operations === 0 && bridgeIdle && activeMarker === null;
+    },
+    snapshot() {
+      return {
+        url: browser.currentURI?.spec ?? null,
+        loading: browser.webProgress?.isLoadingDocument ?? false,
+        loaded: browser.getAttribute('data-zchatgptweb-embed-state') === 'loaded',
+      };
+    },
+    destroy() {
+      destroyed = true;
+      trackConversation();
+      contextGeneration += 1; contextBinding = null; contextProvider = null; activeMarker = null;
+      conversationGeneration += 1; conversationBinding = null; rememberConversation = null; pendingRestore = null;
+      browser.removeEventListener(OFFICIAL_CHAT_BRIDGE_EVENT, onBridge);
+      surface.hide();
+      stopTimer();
+      container.remove();
+    },
+  };
+  return surface;
+}

@@ -1,0 +1,14 @@
+{
+  "manifest_version": 2,
+  "name": "Zotero ChatGPT Web",
+  "version": "0.1.0",
+  "description": "Discuss the current paper with the official ChatGPT website in Zotero Reader.",
+  "applications": {
+    "zotero": {
+      "id": "{c0f56f65-4363-4713-8f48-6bd18593c781}",
+      "strict_min_version": "9.0.6",
+      "strict_max_version": "9.0.*",
+      "update_url": "https://raw.githubusercontent.com/kianmax0/zotero-chatgpt-web/main/updates.json"
+    }
+  }
+}

@@ -1,0 +1,12 @@
+/node_modules/
+/build/
+/dist/
+/coverage/
+.zotero-chatgpt-web-dev/
+.zotero-chatgpt-web-test/
+.DS_Store
+*.log
+.env
+.env.*
+!.env.example
+*.tsbuildinfo

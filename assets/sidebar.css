@@ -1,0 +1,273 @@
+/* Reader-owned ChatGPT shell. The official page itself is hosted in the anchor element. */
+.zchatgptweb-shell,
+[data-zchatgptweb-dock],
+[data-zchatgptweb-resizer],
+[data-zchatgptweb-body],
+[data-zchatgptweb-dock-body] {
+  box-sizing: border-box;
+}
+
+[data-zchatgptweb-dock] {
+  color-scheme: light dark;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+:is([data-zchatgptweb-body], [data-zchatgptweb-dock-body]) {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.zchatgptweb-shell {
+  --zchatgptweb-border: color-mix(in srgb, CanvasText 13%, Canvas);
+  --zchatgptweb-subtle: color-mix(in srgb, CanvasText 62%, Canvas);
+  --zchatgptweb-hover: color-mix(in srgb, CanvasText 8%, Canvas);
+  --zchatgptweb-focus: LinkText;
+  color: CanvasText;
+  background: Canvas;
+  color-scheme: light dark;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  font: inherit;
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.zchatgptweb-shell *,
+.zchatgptweb-shell *::before,
+.zchatgptweb-shell *::after {
+  box-sizing: border-box;
+}
+
+.zchatgptweb-shell__header {
+  position: relative;
+  flex: 0 0 auto;
+  min-width: 0;
+  padding: 7px 10px 2px;
+  background: Canvas;
+}
+
+.zchatgptweb-shell__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 42px;
+}
+
+.zchatgptweb-shell__identity {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.zchatgptweb-shell__paper,
+.zchatgptweb-shell__pdf {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.zchatgptweb-shell__paper {
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.zchatgptweb-shell__pdf {
+  color: var(--zchatgptweb-subtle);
+  font-size: 0.84em;
+  line-height: 1.3;
+}
+
+.zchatgptweb-shell__tools {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+}
+
+.zchatgptweb-shell__icon-button {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 9px;
+  cursor: pointer;
+}
+
+.zchatgptweb-shell__icon-button svg,
+.zchatgptweb-shell__menu-item svg {
+  display: block;
+  width: 19px;
+  height: 19px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.7;
+}
+
+.zchatgptweb-shell__icon-button:hover,
+.zchatgptweb-shell__menu-item:hover {
+  background: var(--zchatgptweb-hover);
+}
+
+.zchatgptweb-shell__icon-button:focus-visible,
+.zchatgptweb-shell__menu-item:focus-visible,
+.zchatgptweb-shell__notice-action:focus-visible,
+.zchatgptweb-shell__disclosure summary:focus-visible {
+  outline: 2px solid var(--zchatgptweb-focus);
+  outline-offset: 2px;
+}
+
+.zchatgptweb-shell__disclosure {
+  margin: 0 4px 5px;
+  color: var(--zchatgptweb-subtle);
+  font-size: 0.8em;
+}
+
+.zchatgptweb-shell__disclosure summary {
+  width: fit-content;
+  min-height: 30px;
+  padding: 5px 3px;
+  cursor: pointer;
+  list-style-position: inside;
+}
+
+.zchatgptweb-shell__disclosure p {
+  max-width: 68ch;
+  margin: 2px 3px 7px;
+  color: CanvasText;
+  line-height: 1.45;
+}
+
+.zchatgptweb-shell__notice {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  color: CanvasText;
+  border-block: 1px solid var(--zchatgptweb-border);
+  background: color-mix(in srgb, CanvasText 4%, Canvas);
+  font-size: 0.88em;
+  overflow-wrap: anywhere;
+}
+
+.zchatgptweb-shell__notice[data-tone="error"] {
+  border-inline-start: 3px solid #c43d3d;
+}
+
+.zchatgptweb-shell__notice[data-tone="success"] {
+  border-inline-start: 3px solid #25845b;
+}
+
+.zchatgptweb-shell__notice-action {
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 4px 8px;
+  color: LinkText;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  font: inherit;
+  cursor: pointer;
+}
+
+.zchatgptweb-shell__anchor {
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: Canvas;
+}
+
+.zchatgptweb-shell__menu {
+  position: absolute;
+  z-index: 10;
+  top: 7px;
+  right: 54px;
+  display: flex;
+  flex-direction: column;
+  width: min(280px, calc(100% - 20px));
+  max-height: min(70vh, 520px);
+  overflow: auto;
+  padding: 5px;
+  color: CanvasText;
+  background: Canvas;
+  border: 1px solid var(--zchatgptweb-border);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px color-mix(in srgb, CanvasText 15%, transparent);
+}
+
+.zchatgptweb-shell__menu[hidden],
+.zchatgptweb-shell__notice[hidden] {
+  display: none;
+}
+
+.zchatgptweb-shell__menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  min-height: 40px;
+  padding: 7px 9px;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.zchatgptweb-shell__menu-item svg {
+  flex: 0 0 19px;
+  color: var(--zchatgptweb-subtle);
+}
+
+@media (max-width: 390px) {
+  .zchatgptweb-shell__header {
+    padding-inline: 6px;
+  }
+
+  .zchatgptweb-shell__bar {
+    gap: 3px;
+  }
+
+  .zchatgptweb-shell__icon-button {
+    flex-basis: 38px;
+    width: 38px;
+    height: 38px;
+  }
+
+  .zchatgptweb-shell__menu {
+    right: 48px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .zchatgptweb-shell *,
+  .zchatgptweb-shell *::before,
+  .zchatgptweb-shell *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
