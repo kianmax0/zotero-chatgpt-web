@@ -1,0 +1,15 @@
+{
+  "status": "FAIL",
+  "layer": "source DOM recognition regression",
+  "sourceRepository": "kianmax0/zotero-chatgpt",
+  "sourceCommit": "9d7ac0e8716ff5381a04506ddc00eb72cc7bff20",
+  "sourceModule": "packages/zotero/actors/chatgpt-dom.mjs",
+  "sourceModuleSha256": "893c86149df4813cbc8ee53e8a7285bd363a35f0defc7bef4f45712df981f725",
+  "environment": "Node 24.11.0 on macOS 26.6.2 arm64",
+  "case": "one controlled ProseMirror contenteditable editor on the exact official HTTPS origin",
+  "expected": "the unique editor is recognized",
+  "observed": "findChatGPTComposer returned null",
+  "xpi": "NOT RUN",
+  "officialQuestion": "NOT RUN",
+  "note": "This captures the selector failure only. It is not a live-page or answer acceptance result."
+}

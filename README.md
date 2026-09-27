@@ -25,6 +25,8 @@ The manifest targets **Zotero 9.0.6–9.0.x**. Development and packaging have be
 
 Official ChatGPT may require sign-in or browser verification, and its page structure can change. If the editor or send control is unknown or ambiguous, the plugin keeps the draft and reports a recovery action. It does not use an API key, Codex, a paid API, a substitute model provider, or an unpublished ChatGPT endpoint. The plugin does not read private answer text or copy the remote transcript into Zotero. It stores only its own settings and per-PDF official conversation URL in separate `extensions.zchatgptweb.*` preferences.
 
+Selection handoff supports one PDF page at a time; a cross-page selection asks you to narrow it. A window keeps at most four live paper pages, preserving drafts and running responses. An unconfirmed submission is never automatically retried.
+
 ## Develop
 
 See [development.md](docs/development.md) for the small source map, build commands, isolated profile setup, and release gate.

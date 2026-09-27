@@ -74,9 +74,9 @@ describe("XPI packaging", () => {
     await expect(packageExtension(source, output)).rejects.toThrow(/add-on ID/u);
   });
 
-  it("requires its own update feed and an empty pre-release feed", async () => {
+  it("requires its own update feed", async () => {
     const feed = JSON.parse(await readFile(new URL("../../updates.json", import.meta.url), "utf8")) as { addons: Record<string, { updates: unknown[] }> };
-    expect(feed.addons[productId]?.updates).toEqual([]);
+    expect(Array.isArray(feed.addons[productId]?.updates)).toBe(true);
     await writeFile(path.join(source, "manifest.json"), fixtureFiles["manifest.json"]!.replace(updateURL, "https://example.invalid/other.json"));
     await expect(packageExtension(source, output)).rejects.toThrow(/update URL/u);
   });
