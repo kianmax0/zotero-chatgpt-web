@@ -1,0 +1,28 @@
+{
+  "status": "PASS",
+  "sourceCommit": "d2b5ec3d21753af9724111f7df5c1cdf88e452a8",
+  "xpi": {
+    "filename": "zotero-chatgpt-web-0.1.0.xpi",
+    "version": "0.1.0",
+    "sha256": "44e6fb828141e415c55178af4bf63931404a31fe76e7ed3363ea5c4e99f3a0cb",
+    "fileCount": 11
+  },
+  "environment": {
+    "os": "macOS 26.6.2 arm64",
+    "node": "24.11.0",
+    "npm": "11.6.1"
+  },
+  "cleanCheckout": true,
+  "commands": {
+    "npm ci --offline --registry=https://registry.npmjs.org": "PASS",
+    "npm run typecheck": "PASS",
+    "npm run lint": "PASS",
+    "npm run test:unit": "PASS",
+    "npm run package:dev": "PASS",
+    "npm run verify:artifacts": "PASS"
+  },
+  "tests": { "vitest": 23, "nodeActorTests": 20, "failed": 0, "skipped": 0 },
+  "byteComparisonWithWorkspaceXpi": "PASS",
+  "officialAnswerAcceptance": "NOT RUN",
+  "note": "The user took over manual Reader and official-site acceptance. No stable Release is authorized by this report."
+}
