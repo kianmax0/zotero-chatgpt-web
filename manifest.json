@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Zotero ChatGPT Web",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Discuss the current paper with the official ChatGPT website in Zotero Reader.",
   "applications": {
     "zotero": {

@@ -20,7 +20,7 @@ The build creates `dist/zotero-chatgpt-web-<version>.xpi` and `dist/SHA256SUMS`.
 Prepare an isolated test profile with a synthetic PDF:
 
 ```sh
-npm run host:prepare -- --xpi dist/zotero-chatgpt-web-0.2.1.xpi --run-id <unique-name>
+npm run host:prepare -- --xpi dist/zotero-chatgpt-web-0.3.0.xpi --run-id <unique-name>
 ```
 
 Use only the generated `.zotero-chatgpt-web-test/<name>/` profile and PDF. Never use a daily profile or real library.

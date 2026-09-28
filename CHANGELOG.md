@@ -1,6 +1,6 @@
 # Changes
 
-## 0.2.1
+## 0.3.0
 
 - Use one compact row of icon-only tools: copy paper details, copy PDF, return to source, link conversation, and reload.
 - Remove the plugin title, New, Settings, and close buttons, plus the settings page and its packaged code.
