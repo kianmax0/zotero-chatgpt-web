@@ -1,5 +1,13 @@
 # Changes
 
+## 0.2.1
+
+- Use one compact row of icon-only tools: copy paper details, copy PDF, return to source, link conversation, and reload.
+- Remove the plugin title, New, Settings, and close buttons, plus the settings page and its packaged code.
+- Use neutral black, white, and gray for every plugin state, including errors, focus, and selection actions.
+- Recognize the explicit `composer-submit-button` control inside the official editor form, preserving ambiguity checks and single-send behavior.
+- Remove obsolete local profiles, previews, and reports. Keep the current validation record; earlier evidence remains in Git history and prior release assets.
+
 ## 0.2.0
 
 - Recognize the official **Send message** control as well as the previous send controls, within the current editor's form.

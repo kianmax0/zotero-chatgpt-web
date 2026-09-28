@@ -78,7 +78,6 @@ export interface ChatEmbedSurface {
   sync(): void;
   /** Force a fresh navigation of the application document. */
   reload(): void;
-  newChat(): Promise<boolean>;
   readiness(): string;
   onStatus(listener: ((status: string, reason?: string) => void) | null): void;
   /** Bind the visible reader/PDF generation to future user-triggered official-composer sends. */
@@ -491,19 +490,6 @@ export function createChatEmbedSurface(win: Window, url: string = CHAT_APP_URL):
     hide() { anchor = null; frame = null; resizeObserver?.disconnect(); resizeObserver = null; retract(); stopTimer(); },
     sync,
     reload() { browser.style.pointerEvents = 'none'; probedWindowGlobal = null; bridgeProbeAfter = 0; renavigate(); },
-    async newChat() {
-      const target = actor();
-      if (!target || pendingRestore) return false;
-      const result = await target.sendQuery('probe').catch(() => null) as { status?: string } | null;
-      if (!['ready', 'composer-ready'].includes(result?.status ?? '')) return false;
-      conversationGeneration += 1;
-      rememberedURL = null;
-      pendingRestore = { generation: conversationGeneration, target: CHAT_APP_URL, canonical: null, issued: true };
-      browser.style.pointerEvents = 'none';
-      browser.setAttribute('data-zchatgptweb-bridge-ready', 'loading');
-      browser.setAttribute('src', CHAT_APP_URL);
-      return true;
-    },
     bindContext(binding, prepare) {
       if (contextBinding === binding && contextProvider === prepare) return;
       contextBinding = binding; contextProvider = prepare; contextGeneration += 1;

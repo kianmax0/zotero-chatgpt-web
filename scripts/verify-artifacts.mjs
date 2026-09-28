@@ -8,8 +8,8 @@ import yauzl from "yauzl";
 export const PRODUCT_ID = "{c0f56f65-4363-4713-8f48-6bd18593c781}";
 export const UPDATE_URL = "https://raw.githubusercontent.com/kianmax0/zotero-chatgpt-web/main/updates.json";
 export const REQUIRED_FILES = [
-  "LICENSE", "bootstrap.js", "manifest.json", "content/zotero-chatgpt-web.js", "content/preferences.js",
-  "content/preferences/preferences.xhtml", "content/assets/sidebar.css", "content/assets/icon.svg",
+  "LICENSE", "bootstrap.js", "manifest.json", "content/zotero-chatgpt-web.js",
+  "content/assets/sidebar.css", "content/assets/icon.svg",
   "content/actors/ChatGPTWebChild.mjs", "content/actors/ChatGPTWebParent.mjs", "content/actors/chatgpt-dom.mjs",
 ];
 const requiredActors = new Set(REQUIRED_FILES.filter(file => file.startsWith("content/actors/")));

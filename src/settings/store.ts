@@ -31,9 +31,4 @@ export class SettingsStore {
     const updated = rememberOfficialConversation(store, binding, url, new Date().toISOString());
     this.host.Prefs.set(CONVERSATIONS, JSON.stringify(updated), true);
   }
-  forgetConversation(binding: string): void {
-    const store = parseOfficialConversationStore(this.host.Prefs.get(CONVERSATIONS, true));
-    delete store[binding];
-    this.host.Prefs.set(CONVERSATIONS, JSON.stringify(store), true);
-  }
 }

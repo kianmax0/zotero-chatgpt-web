@@ -63,6 +63,8 @@ export class ZoteroChatGPTWebOfficialChatChild extends JSWindowActorChild {
 
   handleEvent(event) {
     if (!belongsToOwnedEmbed(this) || !event.isTrusted || !isChatGPTDocument(this.document)) return;
+    const button = event.type === 'click' ? eventElement(event.target)?.closest?.('button') ?? null : null;
+    if (button?.getAttribute?.('data-testid') === 'stop-button') return;
     if (event.type === 'input') {
       if (this.inFlight) return;
       const result = inspectChatGPTComposer(this.document);
@@ -79,7 +81,6 @@ export class ZoteroChatGPTWebOfficialChatChild extends JSWindowActorChild {
     const result = inspectChatGPTComposer(this.document);
     const editors = result.status === 'found' ? [result.composer] : getEditableControls(this.document);
     const targeted = editors.filter(editor => inside(event.target, editor));
-    const button = eventElement(event.target)?.closest?.('button') ?? null;
     const buttonForm = button?.closest?.('form') ?? null;
     const formEditors = buttonForm ? editors.filter(editor => buttonForm.contains(editor)) : [];
     const targetForm = event.type === 'submit' ? event.target : null;

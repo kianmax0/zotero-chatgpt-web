@@ -4,7 +4,7 @@ import { applyDockWidth, bindDockResize, injectReaderStyles, mountReaderDock, un
 import { DEFAULT_SIDEBAR_WIDTH, MIN_READER_WIDTH, ReaderLayoutController, type Anchor, type DockState, type LayoutHost, type Scale, type ViewPosition } from './layout.ts';
 import type { HostReader, ItemDetails, PdfApplication, ZoteroHost, ZoteroWindow } from './types.ts';
 import { updateToolbarButton } from './toolbar.ts';
-export type SidebarRenderer = (body: HTMLElement, identity: AttachmentIdentity, close: () => void, active: boolean) => (() => void) | void;
+export type SidebarRenderer = (body: HTMLElement, identity: AttachmentIdentity) => (() => void) | void;
 
 /** Private PDF state is read in this adapter only. Numeric _location.scale is a percentage. */
 export function pdfApplication(reader: HostReader): PdfApplication | undefined {
@@ -160,7 +160,7 @@ export class NativeReaderPane implements LayoutHost {
     this.disposeView?.(); this.disposeView = undefined;
     const identity = attachmentFromReader(this.zotero, this.reader);
     if (!identity) { body.replaceChildren(); return; }
-    this.disposeView = this.renderView(body, identity, () => { this.controller.close(); this.focusButton(); }, this.controller.active) || undefined;
+    this.disposeView = this.renderView(body, identity) || undefined;
   }
   unmountChat(): void {
     this.disposeView?.(); this.disposeView = undefined;
@@ -169,7 +169,6 @@ export class NativeReaderPane implements LayoutHost {
     if (doc) unmountReaderDock(doc);
   }
   setActive(active: boolean): void { for (const button of this.buttons) updateToolbarButton(button, active && this.selected()); }
-  private focusButton(): void { Array.from(this.buttons).find(button => button.isConnected)?.focus(); }
   setZoom(scale: Scale, anchor: Anchor): void {
     const generation = ++this.zoomGeneration;
     this.pendingFixedScale = typeof scale === 'number' ? scale : undefined;

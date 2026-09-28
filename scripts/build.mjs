@@ -19,7 +19,6 @@ async function copyInputs(destination) {
     [path.join(root, "LICENSE"), path.join(destination, "LICENSE")],
     [path.join(root, "assets/sidebar.css"), path.join(destination, "content/assets/sidebar.css")],
     [path.join(root, "assets/icon.svg"), path.join(destination, "content/assets/icon.svg")],
-    [path.join(root, "preferences/preferences.xhtml"), path.join(destination, "content/preferences/preferences.xhtml")],
     ...actorFiles.map(name => [path.join(root, "actors", name), path.join(destination, "content/actors", name)]),
   ];
   await Promise.all(files.map(async ([source, target]) => {
@@ -51,10 +50,7 @@ export async function buildExtension(destination = output) {
     sourcemap: false,
     define: { __ZCHATGPTWEB_SIDEBAR_CSS__: JSON.stringify(css) },
   };
-  await Promise.all([
-    build({ ...shared, entryPoints: [path.join(root, "src/index.ts")], globalName: "ZoteroChatGPTWeb", outfile: path.join(destination, "content/zotero-chatgpt-web.js") }),
-    build({ ...shared, entryPoints: [path.join(root, "src/settings/entry.ts")], globalName: "ZoteroChatGPTWebSettings", outfile: path.join(destination, "content/preferences.js") }),
-  ]);
+  await build({ ...shared, entryPoints: [path.join(root, "src/index.ts")], globalName: "ZoteroChatGPTWeb", outfile: path.join(destination, "content/zotero-chatgpt-web.js") });
   return destination;
 }
 

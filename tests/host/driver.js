@@ -188,14 +188,56 @@ function runHostInspection(config) {
         before: report.reader.focusBeforeOpen, after: report.reader.focusAfterOpen,
       });
       await check("sidebar-omits-redundant-paper-and-pdf-headings", !shell.querySelector('.zchatgptweb-shell__paper, .zchatgptweb-shell__pdf, [role="menu"]'));
-      const requiredActions = ["New ChatGPT chat", "Reload ChatGPT", "Settings", "Close ChatGPT sidebar",
-        "Copy paper details", "Copy PDF file", "Return to selected passage", "Bind this conversation"];
-      const directlyVisible = requiredActions.every(label => {
-        const button = Array.from(shell.querySelectorAll("button")).find(item => item.getAttribute("aria-label") === label);
-        return button && box(button)?.width >= 24 && box(button)?.height >= 24
-          && readerDoc.defaultView.getComputedStyle(button).visibility === "visible";
+      const requiredActions = ["Copy paper details", "Copy PDF file", "Return to selected passage", "Bind this conversation", "Reload ChatGPT"];
+      const toolbar = shell.querySelector('.zchatgptweb-shell__toolbar');
+      const toolbarButtons = Array.from(toolbar?.querySelectorAll('button') ?? []);
+      const actualLabels = toolbarButtons.map(button => button.getAttribute('aria-label'));
+      const iconStyle = readerDoc.defaultView.getComputedStyle(toolbarButtons[0]?.querySelector('svg'));
+      const oneRow = toolbarButtons.every(button => Math.abs(button.getBoundingClientRect().top - toolbarButtons[0].getBoundingClientRect().top) <= 1);
+      const iconOnly = toolbarButtons.every(button => button.childElementCount === 1 && !button.textContent.trim()
+        && button.title === button.getAttribute('aria-label'));
+      const directlyVisible = JSON.stringify(actualLabels) === JSON.stringify(requiredActions)
+        && toolbarButtons.every(button => box(button)?.width >= 28 && box(button)?.height >= 28
+          && readerDoc.defaultView.getComputedStyle(button).visibility === "visible")
+        && iconStyle.width === "16px" && iconStyle.height === "16px" && oneRow && iconOnly
+        && !shell.querySelector('.zchatgptweb-shell__brand, .zchatgptweb-shell__button, [aria-label="New ChatGPT chat"], [aria-label="Settings"], [aria-label="Close ChatGPT sidebar"]');
+      await check("reader-toolbar-is-one-row-of-icon-only-actions", directlyVisible, {
+        expectedActions: requiredActions, actualLabels, iconSize: { width: iconStyle.width, height: iconStyle.height },
+        buttonRects: toolbarButtons.map(box), oneRow, iconOnly,
       });
-      await check("reader-actions-are-directly-visible-without-a-menu", directlyVisible, { expectedActions: requiredActions.length });
+      const grayscale = value => {
+        const normalized = String(value).match(/color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)/);
+        if (normalized) return Math.abs(Number(normalized[1]) - Number(normalized[2])) < 0.002
+          && Math.abs(Number(normalized[2]) - Number(normalized[3])) < 0.002;
+        const channels = String(value).match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+        return Boolean(channels && channels[1] === channels[2] && channels[2] === channels[3]);
+      };
+      const toolbarStyle = readerDoc.defaultView.getComputedStyle(toolbarButtons[0]);
+      const focusColor = readerDoc.defaultView.getComputedStyle(shell).getPropertyValue('--zchatgptweb-focus').trim();
+      const toolbarGrayscale = grayscale(toolbarStyle.color) && grayscale(toolbarStyle.backgroundColor)
+        && grayscale(toolbarStyle.borderTopColor) && focusColor === 'CanvasText';
+      await check("reader-toolbar-colors-are-grayscale", toolbarGrayscale, {
+        color: toolbarStyle.color, background: toolbarStyle.backgroundColor,
+        border: toolbarStyle.borderTopColor, focus: focusColor,
+      });
+      const notice = shell.querySelector('.zchatgptweb-shell__notice:not([hidden])');
+      if (notice) {
+        const noticeStyle = readerDoc.defaultView.getComputedStyle(notice);
+        await check("reader-status-colors-are-grayscale", grayscale(noticeStyle.color) && grayscale(noticeStyle.backgroundColor), {
+          color: noticeStyle.color, background: noticeStyle.backgroundColor,
+        });
+        const recovery = notice.querySelector('button:not([hidden])');
+        if (recovery) {
+          const recoveryIcon = recovery.querySelector('svg');
+          await check("reader-status-recovery-action-is-icon-only", recovery.childElementCount === 1
+            && !recovery.textContent.trim() && recovery.title === recovery.getAttribute('aria-label')
+            && readerDoc.defaultView.getComputedStyle(recoveryIcon).width === '16px'
+            && readerDoc.defaultView.getComputedStyle(recoveryIcon).height === '16px', {
+            labelPresent: Boolean(recovery.getAttribute('aria-label')),
+            titleMatchesLabel: recovery.title === recovery.getAttribute('aria-label'),
+          });
+        }
+      }
       await check("product-sidebar-is-mounted-in-reader-dock", dock.contains(shell) && dock.getAttribute("aria-label") === "ChatGPT Web");
 
       const resizer = dock.querySelector('[data-zchatgptweb-resizer]');
@@ -310,12 +352,12 @@ function runHostInspection(config) {
         const width = actualWidth(dock);
         const currentShell = dock.querySelector('.zchatgptweb-shell');
         const shellBounds = currentShell?.getBoundingClientRect();
-        const toolbarButtons = Array.from(currentShell?.querySelectorAll('header button') ?? []).filter(button => !button.hidden);
-        const actionsFit = Boolean(shellBounds) && toolbarButtons.length >= requiredActions.length && toolbarButtons.every(button => {
+        const widthButtons = Array.from(currentShell?.querySelectorAll('.zchatgptweb-shell__toolbar button') ?? []).filter(button => !button.hidden);
+        const actionsFit = Boolean(shellBounds) && widthButtons.length === requiredActions.length && widthButtons.every(button => {
           const bounds = button.getBoundingClientRect();
           return bounds.width >= 24 && bounds.height >= 24 && bounds.left >= shellBounds.left - 1 && bounds.right <= shellBounds.right + 1;
         });
-        await check(`visible-actions-fit-sidebar-width-${requestedWidth}`, actionsFit, { buttons: toolbarButtons.length });
+        await check(`visible-actions-fit-sidebar-width-${requestedWidth}`, actionsFit, { buttons: widthButtons.length });
         const afterWidthAnchor = pdfAnchor(pdfReader);
         const focusAfterResize = readerDoc.activeElement;
         const focusPreserved = focusStable(focusBeforeResize, focusAfterResize, focusBeforeResizeSummary, activeElementSummary(readerDoc));
@@ -346,15 +388,34 @@ function runHostInspection(config) {
       syntheticEditor.setAttribute("contenteditable", "true");
       syntheticEditor.style.cssText = "position:fixed;left:-10000px;top:0;width:400px;white-space:pre-wrap";
       syntheticEditor.innerHTML = "<p><br></p>";
-      readerDoc.body.append(syntheticEditor);
+      const syntheticForm = readerDoc.createElement("form");
+      syntheticForm.append(syntheticEditor);
+      readerDoc.body.append(syntheticForm);
       const beforeEditorFocus = readerDoc.activeElement;
       const syntheticText = "Synthetic question\n\nSelected passage\nA synthetic paragraph.\n\n[synthetic insertion receipt]";
       try {
         const inserted = dom.replaceChatGPTComposer(syntheticEditor, syntheticText);
         await check("final-xpi-rich-editor-multiline-insertion-in-gecko", inserted && dom.sameRenderedText(dom.readChatGPTComposer(syntheticEditor), syntheticText));
         await check("rendered-text-verification-preserves-word-spacing", !dom.sameRenderedText("a b", "ab"));
+        // Real Gecko DOM selectors with a synthetic origin/view wrapper, never the remote page.
+        const syntheticView = {};
+        syntheticView.top = syntheticView;
+        const syntheticDocument = { location: { href: "https://chatgpt.com/" }, defaultView: syntheticView };
+        const send = readerDoc.createElement("button");
+        send.id = "composer-submit-button";
+        send.type = "submit";
+        syntheticForm.append(send);
+        await check("final-xpi-id-only-send-control-in-native-dom", dom.isKnownSendControl(send)
+          && dom.inspectChatGPTSendControl(syntheticDocument, syntheticEditor).control === send);
+        const duplicate = readerDoc.createElement("button");
+        duplicate.setAttribute("aria-label", "Send message");
+        syntheticForm.append(duplicate);
+        await check("final-xpi-ambiguous-send-controls-remain-blocked", dom.inspectChatGPTSendControl(syntheticDocument, syntheticEditor).status === "ambiguous-send");
+        duplicate.remove();
+        send.remove();
+        await check("final-xpi-missing-send-control-remains-blocked", dom.inspectChatGPTSendControl(syntheticDocument, syntheticEditor).status === "missing");
       } finally {
-        syntheticEditor.remove();
+        syntheticForm.remove();
         if (beforeEditorFocus?.isConnected) beforeEditorFocus.focus();
       }
       report.status = report.page.status === "PASS" ? "PASS" : "BLOCKED";

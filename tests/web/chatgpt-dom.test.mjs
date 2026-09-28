@@ -103,6 +103,121 @@ test('discovers the official Send message button in the editor form', () => {
   assert.deepEqual(inspectChatGPTSendControl(fixture({ editors: [editor] }), editor), { status: 'found', control: send });
 });
 
+test('discovers the current ChatGPT composer-submit-button in the editor form', () => {
+  const editor = { localName: 'div', id: 'prompt-textarea', proseMirror: true,
+    classList: { contains: name => name === 'ProseMirror' },
+    getAttribute: name => name === 'contenteditable' ? 'true' : null };
+  const send = { localName: 'button', id: 'composer-submit-button', type: 'submit', disabled: false,
+    getAttribute: name => name === 'id' ? 'composer-submit-button' : name === 'type' ? 'submit' : null };
+  const form = { contains: value => value === editor || value === send,
+    querySelectorAll: selector => selector.includes('#composer-submit-button') ? [send] : [],
+    querySelector: () => null };
+  editor.closest = selector => selector === 'form' ? form : null;
+  assert.deepEqual(inspectChatGPTSendControl(fixture({ editors: [editor] }), editor), { status: 'found', control: send });
+});
+
+test('duplicate composer-submit-button controls in the editor form remain ambiguous', () => {
+  const editor = { localName: 'div', id: 'prompt-textarea', proseMirror: true,
+    classList: { contains: name => name === 'ProseMirror' },
+    getAttribute: name => name === 'contenteditable' ? 'true' : null };
+  const first = { localName: 'button', id: 'composer-submit-button', type: 'submit' };
+  const second = { localName: 'button', id: 'composer-submit-button', type: 'submit' };
+  const form = { contains: value => value === editor || value === first || value === second,
+    querySelectorAll: selector => selector.includes('#composer-submit-button') ? [first, second] : [],
+    querySelector: () => null };
+  editor.closest = selector => selector === 'form' ? form : null;
+  assert.deepEqual(inspectChatGPTSendControl(fixture({ editors: [editor] }), editor), { status: 'ambiguous-send', control: null });
+});
+
+test('a composer-submit-button outside the editor form is not accepted', () => {
+  const editor = { localName: 'div', id: 'prompt-textarea', proseMirror: true,
+    classList: { contains: name => name === 'ProseMirror' },
+    getAttribute: name => name === 'contenteditable' ? 'true' : null };
+  const outsideSend = { localName: 'button', id: 'composer-submit-button', type: 'submit' };
+  const form = { contains: value => value === editor,
+    querySelectorAll: () => [], querySelector: () => null };
+  editor.closest = selector => selector === 'form' ? form : null;
+  const document = fixture({ editors: [editor] });
+  const querySelectorAll = document.querySelectorAll.bind(document);
+  document.querySelectorAll = selector => selector.includes('#composer-submit-button')
+    ? [outsideSend] : querySelectorAll(selector);
+  assert.deepEqual(inspectChatGPTSendControl(document, editor), { status: 'missing', control: null });
+});
+
+test('a composer-submit-button marked as Stop is not a send control', () => {
+  const editor = { localName: 'div', id: 'prompt-textarea', proseMirror: true,
+    classList: { contains: name => name === 'ProseMirror' },
+    getAttribute: name => name === 'contenteditable' ? 'true' : null };
+  const stop = { localName: 'button', id: 'composer-submit-button', type: 'submit',
+    getAttribute: name => name === 'id' ? 'composer-submit-button' : name === 'type' ? 'submit' : name === 'data-testid' ? 'stop-button' : null };
+  const form = { contains: value => value === editor || value === stop,
+    querySelectorAll: selector => selector.includes('#composer-submit-button')
+      && !selector.includes(':not([data-testid="stop-button"])') ? [stop] : [],
+    querySelector: () => null };
+  editor.closest = selector => selector === 'form' ? form : null;
+  assert.deepEqual(inspectChatGPTSendControl(fixture({ editors: [editor] }), editor), { status: 'missing', control: null });
+});
+
+test('trusted composer-submit-button click is routed through the intercepted manual-send path', async () => {
+  globalThis.JSWindowActorChild = class {};
+  const { ZoteroChatGPTWebOfficialChatChild } = await import('../../actors/ChatGPTWebChild.mjs');
+  const editor = { localName: 'div', id: 'prompt-textarea', proseMirror: true, textContent: 'Keep this draft',
+    classList: { contains: name => name === 'ProseMirror' },
+    getAttribute: name => name === 'contenteditable' ? 'true' : null };
+  const send = { localName: 'button', id: 'composer-submit-button', type: 'submit', disabled: false,
+    matches: selector => selector.includes('#composer-submit-button'),
+    getAttribute: name => name === 'id' ? 'composer-submit-button' : name === 'type' ? 'submit' : null,
+    closest(selector) { return selector === 'button' ? this : selector === 'form' ? form : null; } };
+  const form = { contains: value => value === editor || value === send,
+    querySelectorAll: selector => selector.includes('#composer-submit-button') ? [send] : [],
+    querySelector: () => null };
+  editor.closest = selector => selector === 'form' ? form : null;
+  const actor = new ZoteroChatGPTWebOfficialChatChild();
+  actor.document = fixture({ editors: [editor] });
+  actor.sendAsyncMessage = () => {};
+  const routed = [];
+  actor.submitQuestion = question => { routed.push(question); return Promise.resolve({ status: 'accepted' }); };
+  const event = { type: 'click', isTrusted: true, target: send, prevented: false,
+    preventDefault() { this.prevented = true; }, stopImmediatePropagation() {} };
+
+  actor.handleEvent(event);
+
+  assert.equal(event.prevented, true);
+  assert.deepEqual(routed, ['Keep this draft']);
+});
+
+test('a composer control identified as Stop remains a native control', async () => {
+  globalThis.JSWindowActorChild = class {};
+  const { ZoteroChatGPTWebOfficialChatChild } = await import('../../actors/ChatGPTWebChild.mjs');
+  const editor = { localName: 'div', id: 'prompt-textarea', proseMirror: true, textContent: 'Keep this draft',
+    classList: { contains: name => name === 'ProseMirror' },
+    getAttribute: name => name === 'contenteditable' ? 'true' : null };
+  const stop = { localName: 'button', id: 'composer-submit-button', type: 'submit', disabled: false,
+    matches: selector => selector.includes('#composer-submit-button') || selector.includes('data-testid="stop-button"'),
+    getAttribute: name => name === 'id' ? 'composer-submit-button' : name === 'data-testid' ? 'stop-button' : null,
+    closest(selector) { return selector === 'button' ? this : selector === 'form' ? form : null; } };
+  const form = { contains: value => value === editor || value === stop,
+    querySelectorAll: selector => selector.includes('#composer-submit-button') ? [stop] : [],
+    querySelector: () => null };
+  editor.closest = selector => selector === 'form' ? form : null;
+  const document = fixture({ editors: [editor] });
+  document.querySelector = selector => selector.includes('data-testid="stop-button"') ? stop : null;
+  const actor = new ZoteroChatGPTWebOfficialChatChild();
+  actor.document = document;
+  actor.sendAsyncMessage = () => {};
+  let routed = 0;
+  actor.submitQuestion = () => { routed += 1; };
+  const event = { type: 'click', isTrusted: true, target: stop, prevented: false,
+    preventDefault() { this.prevented = true; }, stopImmediatePropagation() { this.stopped = true; } };
+
+  actor.handleEvent(event);
+
+  assert.equal(event.prevented, false);
+  assert.equal(event.stopped, undefined);
+  assert.equal(routed, 0);
+  assert.equal(editor.textContent, 'Keep this draft');
+});
+
 test('trusted Send message click is routed through the intercepted manual-send path', async () => {
   globalThis.JSWindowActorChild = class {};
   const { ZoteroChatGPTWebOfficialChatChild } = await import('../../actors/ChatGPTWebChild.mjs');
@@ -468,8 +583,13 @@ test('composer tools remain clickable when a draft exists and the send control i
   let routed = 0;
   actor.submitQuestion = () => { routed += 1; };
   for (const label of ['Add files and more', 'Select ChatGPT model', 'Dictate', 'Start Voice', 'New composer tool']) {
-    const tool = { localName: 'button', type: 'button', matches: () => false,
-      getAttribute: name => name === 'aria-label' ? label : null,
+    const voiceTool = label === 'Dictate';
+    const tool = { localName: 'button', id: voiceTool ? 'composer-submit-button' : '', type: 'button',
+      matches(selector) {
+        return selector.includes('#composer-submit-button') && voiceTool
+          && (!selector.includes('[type="submit"]') || this.type === 'submit');
+      },
+      getAttribute: name => name === 'id' && voiceTool ? 'composer-submit-button' : name === 'aria-label' ? label : null,
       closest(selector) { return selector === 'button' ? this : selector === 'form' ? form : null; } };
     const event = { type: 'click', isTrusted: true, target: tool, prevented: false,
       preventDefault() { this.prevented = true; }, stopImmediatePropagation() {} };
@@ -513,8 +633,11 @@ test('a direct selected-passage send waits for the button that appears after com
   view.top = view;
   let clicks = 0;
   const userMessages = [];
-  const send = { localName: 'button', disabled: false, click() { clicks += 1; userMessages.push({ textContent: editor.value }); } };
-  const form = { contains: () => true, querySelectorAll: () => editor.value ? [send] : [], querySelector: () => null };
+  const send = { localName: 'button', id: 'composer-submit-button', type: 'submit', disabled: false,
+    click() { clicks += 1; userMessages.push({ textContent: editor.value }); } };
+  const form = { contains: () => true,
+    querySelectorAll: selector => selector.includes('#composer-submit-button') && editor.value ? [send] : [],
+    querySelector: () => null };
   const editor = { localName: 'textarea', id: 'prompt-textarea', type: 'text', value: '', getAttribute: () => null,
     closest: selector => selector === 'form' ? form : null, dispatchEvent() {} };
   const document = fixture({ editors: [editor] });

@@ -133,14 +133,14 @@ beforeEach(() => {
     bindContext: vi.fn(), bindConversation: vi.fn(), onStatus: vi.fn(), show: vi.fn(), hide: vi.fn(),
     readiness: vi.fn(() => 'ready'), stage: vi.fn(() => Promise.resolve({ status: 'staged' })),
     submitQuestion: vi.fn(() => new Promise<{ status: string }>(resolve => { state.submitResolution = resolve; })),
-    reload: vi.fn(), newChat: vi.fn(() => Promise.resolve(true)),
+    reload: vi.fn(),
     snapshot: vi.fn(() => ({ url: 'https://chatgpt.com/c/synthetic-12345678', loading: false, loaded: true })),
     evictable: vi.fn(() => false), sync: vi.fn(), destroy: vi.fn(),
   };
 });
 
-afterEach(async () => {
-  await shutdown();
+afterEach(() => {
+  shutdown();
   vi.unstubAllGlobals();
 });
 

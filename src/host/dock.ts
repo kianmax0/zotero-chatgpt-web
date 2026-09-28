@@ -40,8 +40,8 @@ function paintDockColumn(dock: HTMLElement, width?: number): void {
   pin('unicode-bidi', 'isolate');
   pin('overflow', 'hidden');
   pin('box-sizing', 'border-box');
-  pin('background', 'var(--material-background, var(--color-background, Canvas))');
-  pin('color', 'var(--fill-primary, CanvasText)');
+  pin('background', 'Canvas');
+  pin('color', 'CanvasText');
   pin('font-family', 'inherit');
   pin('font-size', '13px');
   pin('line-height', '1.4');

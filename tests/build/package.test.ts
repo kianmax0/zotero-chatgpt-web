@@ -19,8 +19,6 @@ const fixtureFiles: Record<string, string> = {
     applications: { zotero: { id: productId, strict_min_version: "9.0.6", strict_max_version: "9.0.*", update_url: updateURL } },
   }),
   "content/zotero-chatgpt-web.js": "(() => {})();\n",
-  "content/preferences.js": "(() => {})();\n",
-  "content/preferences/preferences.xhtml": "<window/>\n",
   "content/assets/sidebar.css": ":root {}\n",
   "content/assets/icon.svg": "<svg/>\n",
   "content/actors/ChatGPTWebChild.mjs": "export {};\n",

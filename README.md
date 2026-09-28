@@ -10,7 +10,9 @@ One XPI for Zotero 9.0.6–9.0.x on Windows, macOS, and Linux. CI checks all thr
 
 ## Use
 
-Open a PDF in Reader and select **ChatGPT Web**. Sign in at chatgpt.com. Select text to ask about a passage. Paper details are included on send when enabled in Zotero settings; PDF body text is never sent automatically.
+Open a PDF in Reader and select **ChatGPT Web**. Sign in at chatgpt.com. Select text to ask about a passage. The toolbar contains only icons for copying paper details or the PDF, returning to the source passage, linking a conversation, and reloading. Hover an icon for its label. Use the Reader toolbar button to close the sidebar; use ChatGPT’s own controls to start a new chat.
+
+Messages include paper details and the abstract by default; PDF body text is never sent automatically. Existing automatic-context preferences are respected. There is no add-on settings page.
 
 ## Scope
 

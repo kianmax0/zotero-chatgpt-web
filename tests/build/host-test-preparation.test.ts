@@ -19,8 +19,6 @@ const files: Record<string, string> = {
     applications: { zotero: { id: addonId, strict_min_version: "9.0.6", strict_max_version: "9.0.*", update_url: "https://raw.githubusercontent.com/kianmax0/zotero-chatgpt-web/main/updates.json" } },
   }),
   "content/zotero-chatgpt-web.js": "(() => {})();\n",
-  "content/preferences.js": "(() => {})();\n",
-  "content/preferences/preferences.xhtml": "<window/>\n",
   "content/assets/sidebar.css": ":root {}\n",
   "content/assets/icon.svg": "<svg/>\n",
   "content/actors/ChatGPTWebChild.mjs": "export {};\n",

@@ -5,7 +5,7 @@ const EDITOR_SELECTORS = [
   '.ProseMirror[contenteditable="true"]',
 ];
 const EDITABLE_SELECTOR = 'textarea, [contenteditable="true"]';
-const SEND_SELECTOR = 'button[data-testid="send-button"], button[aria-label="Send prompt"], button[aria-label="Send message"]';
+const SEND_SELECTOR = 'button[data-testid="send-button"], button#composer-submit-button[type="submit"]:not([data-testid="stop-button"]), button[aria-label="Send prompt"], button[aria-label="Send message"]';
 const USER_MESSAGE_SELECTOR = '[data-message-author-role="user"]';
 
 function unique(elements) {

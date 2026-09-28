@@ -15,9 +15,7 @@ import { createChatEmbedSurface, type ChatEmbedSurface } from './web/embed.ts';
 import { canonicalOfficialConversationURL } from './web/history.ts';
 
 declare const Zotero: ZoteroHost & {
-  Utilities?: { Internal?: { copyTextToClipboard?(text: string): void; openPreferences?(paneId: string): void } };
-  ZoteroChatGPTWebPreferencesHost?: unknown;
-  ZoteroChatGPTWebPreferencesPane?: unknown;
+  Utilities?: { Internal?: { copyTextToClipboard?(text: string): void } };
 };
 
 export interface PluginContext { rootURI: string; pluginID: string; version?: string }
@@ -35,7 +33,6 @@ interface Session {
 
 interface ReaderEntry { pane: NativeReaderPane; buttons: Set<HTMLButtonElement>; selection: SelectionActionBar; usedSelections: Set<string> }
 
-const PREF_PANE = 'zchatgptweb-prefpane-settings';
 const sessions = new Map<ZoteroWindow, Map<string, Session>>();
 const readers = new Map<HostReader, ReaderEntry>();
 const windows = new Map<ZoteroWindow, () => void>();
@@ -43,8 +40,6 @@ const frozenVersions = new WeakMap<Citation, Promise<Citation>>();
 let settings: SettingsStore | null = null;
 let active = false;
 let notifierId: string | null = null;
-let preferencePane: string | null = null;
-let preferenceRegistration: Promise<string | undefined> | null = null;
 
 function copyText(text: string): boolean {
   try {
@@ -177,13 +172,12 @@ function readerEntry(reader: HostReader): ReaderEntry {
   const cached = readers.get(reader);
   if (cached) return cached;
   const buttons = new Set<HTMLButtonElement>();
-  const pane = new NativeReaderPane(Zotero, reader, buttons, (body, identity, close) => {
+  const pane = new NativeReaderPane(Zotero, reader, buttons, (body, identity) => {
     let session: Session;
     try { session = sessionFor(reader, identity); }
     catch (error) { body.textContent = error instanceof Error ? error.message : 'ChatGPT is unavailable.'; return; }
     const binding = attachmentBinding(identity);
     const shell = mountShell(body, {
-      onClose: close,
       onReload: session.reload,
       onCopyDetails: () => {
         const details = metadataForAttachment(Zotero, identity);
@@ -197,16 +191,6 @@ function readerEntry(reader: HostReader): ReaderEntry {
         shell.status(copied ? 'PDF copied. Paste into ChatGPT to attach.' : 'PDF copy failed.', copied ? 'info' : 'error');
       })().catch(() => shell.status('The PDF could not be copied.', 'error')); },
       onReturnToSource: () => { const citation = session.latestCitation; if (citation) void openCitation(Zotero, citation).catch(error => showError(session, error)); else shell.status('Select a passage first.', 'info'); },
-      onSettings: () => {
-        try {
-          if (Zotero.Utilities?.Internal?.openPreferences) Zotero.Utilities.Internal.openPreferences(PREF_PANE);
-          else shell.status('Open Zotero Settings → Zotero ChatGPT Web to change automatic context.', 'info');
-        } catch { shell.status('Open Zotero Settings → Zotero ChatGPT Web to change automatic context.', 'error'); }
-      },
-      onNewChat: () => { void session.surface.newChat().then(started => {
-        if (started) { settings?.forgetConversation(binding); shell.status(''); }
-        else shell.status('Finish or clear the current draft before starting a new chat.', 'error');
-      }).catch(() => shell.status('A new chat could not be opened. Review the current draft and retry.', 'error')); },
       onBindConversation: () => {
         const url = canonicalOfficialConversationURL(session.surface.snapshot().url);
         if (!url) shell.status('Open an official ChatGPT conversation before binding it.', 'error');
@@ -301,10 +285,6 @@ export function startup(options: PluginContext): void {
     installOfficialChatResource(options.rootURI); resourceInstalled = true;
     registerOfficialChatActor(OFFICIAL_CHAT_RESOURCE_ROOT); actorRegistered = true;
     active = true;
-    Zotero.ZoteroChatGPTWebPreferencesHost = {
-      automaticBibliography: () => settings?.automaticBibliography() ?? true,
-      setAutomaticBibliography: (value: boolean) => settings?.setAutomaticBibliography(value),
-    };
     Zotero.Reader.registerEventListener('renderToolbar', onToolbar, options.pluginID);
     Zotero.Reader.registerEventListener('renderTextSelectionPopup', onSelectionPopup, options.pluginID);
     notifierId = Zotero.Notifier.registerObserver({ notify: reconcile }, ['tab'], options.pluginID);
@@ -314,16 +294,7 @@ export function startup(options: PluginContext): void {
     notifierId = null;
     if (actorRegistered) unregisterOfficialChatActor();
     if (resourceInstalled) removeOfficialChatResource();
-    delete Zotero.ZoteroChatGPTWebPreferencesHost;
     throw error;
-  }
-  if (Zotero.PreferencePanes) {
-    preferenceRegistration = Zotero.PreferencePanes.register({
-      pluginID: options.pluginID, id: PREF_PANE, label: 'Zotero ChatGPT Web',
-      image: `${options.rootURI}content/assets/icon.svg`, src: `${options.rootURI}content/preferences/preferences.xhtml`,
-      scripts: [`${options.rootURI}content/preferences.js`], stylesheets: [`${options.rootURI}content/assets/sidebar.css`], defaultXUL: true,
-    }).then(id => { if (!active) Zotero.PreferencePanes?.unregister(id); else preferencePane = id; return id; })
-      .catch(error => { Zotero.logError(error); return undefined; });
   }
 }
 
@@ -350,7 +321,7 @@ export function onMainWindowUnload(window: Window): void {
   sessions.delete(win);
 }
 
-export async function shutdown(): Promise<void> {
+export function shutdown(): void {
   if (!active) return;
   active = false;
   for (const win of [...windows.keys()]) onMainWindowUnload(win);
@@ -358,11 +329,6 @@ export async function shutdown(): Promise<void> {
   readers.clear();
   if (notifierId) Zotero.Notifier.unregisterObserver(notifierId);
   notifierId = null;
-  await preferenceRegistration;
-  if (preferencePane) Zotero.PreferencePanes?.unregister(preferencePane);
-  preferencePane = null; preferenceRegistration = null;
   unregisterOfficialChatActor(); removeOfficialChatResource();
-  delete Zotero.ZoteroChatGPTWebPreferencesHost;
-  delete Zotero.ZoteroChatGPTWebPreferencesPane;
   settings = null;
 }
