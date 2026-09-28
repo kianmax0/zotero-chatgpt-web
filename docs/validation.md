@@ -1,30 +1,22 @@
-# Validation record
+# Validation
 
-Statuses: **PASS**, **FAIL**, **BLOCKED**, **NOT RUN**. Every result here belongs to the new add-on. The original project’s reports do not count for this XPI.
+Source: `4492e4cf8119ec2f59e544b23c8c1dc898d7956f`.
+XPI: `zotero-chatgpt-web-0.1.0.xpi`.
+SHA-256: `c3efd40c5103bf2b9c40dc2a9ae9e66ec81e3ec95e53a8b2b29ac6b41f727115`.
+Local environment: macOS 26.6.2 arm64, Zotero 9.0.6, Node 24.11.0, npm 11.6.1.
 
-Source commit: `d2b5ec3d21753af9724111f7df5c1cdf88e452a8`. Candidate: `zotero-chatgpt-web-0.1.0.xpi`, SHA-256 `44e6fb828141e415c55178af4bf63931404a31fe76e7ed3363ea5c4e99f3a0cb`. Environment: macOS 26.6.2 arm64, Node 24.11.0, npm 11.6.1, Zotero 9.0.6.
-
-| Gate | Status | Evidence |
+| Check | Result | Evidence |
 | --- | --- | --- |
-| TypeScript, ESLint, unit tests | PASS | [Local gates](reports/local-gates.json): 23 Vitest + 20 actor tests, zero failures/skips. |
-| XPI packaging and allowlist | PASS | 11 files; no runtime, Node dependency, test profile, or authentication material. |
-| Clean-checkout rebuild and byte comparison | PASS | [Local gates](reports/local-gates.json); clean checkout produced the same SHA-256 and bytes. |
-| Candidate active in isolated Zotero | PASS | [Host preflight](reports/host-preflight.json), hash-bound add-on active check and two synthetic PDFs under one parent. |
-| Automated Reader focus check | FAIL | [Host preflight](reports/host-preflight.json): unfocused Reader body changed to its PDF iframe. This measurement does not establish that the plugin took focus; the test was corrected, then left unrun when the user took over acceptance. |
-| Visual layouts, themes, enlarged text, keyboard/IME, anchors, multiple windows | NOT RUN | User-owned manual acceptance. No prior product report is inherited. |
-| Official page accepts selected passage | NOT RUN | User-owned final-XPI acceptance. |
-| Visible official answer uses hidden random passage content | NOT RUN | User-owned final-XPI acceptance; required for Release. |
-| Cold-start plugin process observation and old/new coexistence | NOT RUN | Manual isolated-profile checks remain. The artifact has no Codex code or binary. |
-| Desktop UI automation | BLOCKED | Computer Use was not approved for Zotero; no UI-control workaround was used. |
+| Typecheck, lint, unit tests | PASS | 29 Vitest + 24 actor tests; no failures or skips. |
+| XPI allowlist and checksum | PASS | 11 product files; no test profile, driver, authentication data, Node runtime, or native binary. |
+| Clean-checkout build | PASS | Worktree at the source commit; rebuilt XPI matches byte for byte. |
+| Windows, Linux, macOS CI | PASS | [CI run](https://github.com/kianmax0/zotero-chatgpt-web/actions/runs/36361174729): all five gates on all three systems; XPI byte comparison passed. |
+| Final-XPI Reader checks on macOS | PASS | [Reader report](reports/reader-0.1.0.json): isolated profile, two synthetic PDFs, identity, focus, 8 px resize handle, pointer-event and keyboard width changes, remembered widths, clamps, page and vertical reading position. |
+| Native mouse drag across embedded page | NOT RUN | Pointer-event tests do not establish trusted Gecko pointer capture. |
+| Horizontal reading position, dark mode, enlarged text, IME, multiple windows | NOT RUN | Centered-page horizontal margins change with page-width zoom. |
+| Windows and Linux native Reader checks | NOT RUN | CI validates the universal package; native Zotero checks remain separate. |
+| Selected passage produces a visible official answer | BLOCKED | Official ChatGPT requests browser verification in the isolated profile. User verification/sign-in is required. |
 
-## Failure baseline and review
+Stable release requires the last check to pass with this exact XPI: select a fresh random value from a synthetic PDF, send **More details**, and verify that the visible official answer uses it. The question must not repeat the value. Also check **Ask in sidechat** stages without sending and context-off sends omit paper metadata.
 
-[Actor baseline](reports/actor-baseline.json) records the original implementation failing to recognize one controlled ProseMirror editor. The new regression passes. The original checkout remained at `9d7ac0e` with its two local commits and two modified documents preserved.
-
-Independent source review was performed. Actor ownership, transaction binding, single-marker insertion, first-send disclosure, and duplicate-click handling were checked and corrected where needed. The host report is preserved as a failed test observation; it is not promoted to a full Reader or official-answer PASS.
-
-## Manual handoff
-
-The user chose to perform acceptance on 2026-09-28. Automated test instances were stopped. Use a dedicated profile created by `host:prepare`, import its synthetic PDFs, and test this exact XPI. Select the line containing the fresh random verification content, click **More details**, and check that the visible answer in that same official conversation uses it. The question itself must not repeat the random value. Separately check **Ask in sidechat** inserts without sending, context-off sends omit bibliography/abstract, PDF identities stay separate, and the layout/focus/IME checks above.
-
-No tag or stable GitHub Release has been created. The update feed remains empty until these gates pass.
+Until then, the first release is a prerelease and the automatic update feed remains empty. Previous baseline evidence is retained in `reports/host-preflight.json`; it does not validate this package.
