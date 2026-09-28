@@ -1,0 +1,85 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "e4c955df84e406c2377f639aa43d317f8ad6d0ba",
+  "artifact": {
+    "filename": "zotero-chatgpt-web-0.2.0.xpi",
+    "sha256": "bc2687b497482bd73d8c0a40ed7cbbd9a9b7db83aba869530773f1651f5b1664",
+    "allowlistedFiles": 11
+  },
+  "environment": {
+    "os": "macOS 26.6.2",
+    "architecture": "arm64",
+    "zotero": "9.0.6",
+    "node": "24.11.0",
+    "npm": "11.6.1"
+  },
+  "localGates": {
+    "typecheck": "PASS",
+    "lint": "PASS",
+    "unitTests": {
+      "status": "PASS",
+      "vitest": 32,
+      "actors": 30,
+      "skipped": 0
+    },
+    "package": "PASS",
+    "artifactVerification": "PASS"
+  },
+  "cleanCheckout": {
+    "status": "PASS",
+    "sourceCommit": "e4c955df84e406c2377f639aa43d317f8ad6d0ba",
+    "byteIdentical": true
+  },
+  "crossPlatformCI": {
+    "status": "PASS",
+    "runId": 36364608536,
+    "url": "https://github.com/kianmax0/zotero-chatgpt-web/actions/runs/36364608536",
+    "platforms": {
+      "ubuntu-latest": "PASS",
+      "windows-latest": "PASS",
+      "macos-latest": "PASS"
+    },
+    "identicalPackages": "PASS",
+    "downloadedArtifactsMatchFinalXpi": true
+  },
+  "reader": {
+    "report": "reader-0.2.0.json",
+    "runId": "release-v020-0928",
+    "status": "PASS",
+    "passedChecks": 21,
+    "failedChecks": 0,
+    "richEditorMultilineInsertion": "PASS",
+    "wordSpacingVerification": "PASS",
+    "trustedMouseCapture": "NOT RUN",
+    "horizontalAnchor": "NOT RUN",
+    "darkMode": "NOT RUN",
+    "windows": "NOT RUN",
+    "linux": "NOT RUN"
+  },
+  "uiPreview": {
+    "status": "PASS",
+    "lightTheme": "PASS",
+    "darkTheme": "PASS",
+    "widthsCss": [
+      312,
+      352,
+      472,
+      712
+    ],
+    "actionsFit": true,
+    "visibleErrorText": true,
+    "environment": "Isolated Chromium local synthetic preview, distinct from native Zotero"
+  },
+  "officialAnswer": {
+    "status": "BLOCKED",
+    "reason": "challenge-required",
+    "method": "Fresh random synthetic selected passage, official More details action, visible answer required",
+    "automaticSubmission": "NOT RUN",
+    "manualAcceptance": "NOT RUN"
+  },
+  "release": {
+    "channel": "prerelease",
+    "stableGate": "BLOCKED",
+    "updateFeed": "empty"
+  }
+}

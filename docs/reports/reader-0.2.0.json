@@ -1,0 +1,396 @@
+{
+  "schemaVersion": 1,
+  "runId": "release-v020-0928",
+  "status": "BLOCKED",
+  "startedAt": "2026-09-28T00:59:20.981Z",
+  "build": {
+    "product": {
+      "addonId": "{c0f56f65-4363-4713-8f48-6bd18593c781}",
+      "version": "0.2.0",
+      "sha256": "bc2687b497482bd73d8c0a40ed7cbbd9a9b7db83aba869530773f1651f5b1664"
+    },
+    "driverSourceSha256": "027cfcb394ede4386777cff0727c87946d9caf562bd2e098e050afd48ca77db5"
+  },
+  "environment": {
+    "zoteroVersion": "9.0.6",
+    "profileBound": true,
+    "dataBound": true
+  },
+  "synthetic": {
+    "parent": {
+      "key": "3T8AD3YH",
+      "type": "journalArticle",
+      "title": "Synthetic Zotero ChatGPT Web reader host test",
+      "attachmentCount": 2
+    },
+    "attachments": [
+      {
+        "key": "XF6DT469",
+        "id": 2,
+        "parentID": 1,
+        "filename": "synthetic-paper-a.pdf",
+        "title": "Synthetic Paper A: Contextual inference",
+        "sha256": "b302820e8530bfa1fdeed697515ad0efa5737769994a92dce527ecff8b13770c"
+      },
+      {
+        "key": "7UDF9DIA",
+        "id": 3,
+        "parentID": 1,
+        "filename": "synthetic-paper-b.pdf",
+        "title": "Synthetic Paper B: Measurement selection",
+        "sha256": "c0086b8cf1e3afc3bc54e32cc91d9f23f5108f92bd53646bf6cc28ff0a7aaf96"
+      }
+    ]
+  },
+  "reader": {
+    "selectedTabMatches": true,
+    "before": {
+      "attachmentID": 2,
+      "pageAnchor": {
+        "page": 1,
+        "scale": 1.158,
+        "anchor": {
+          "page": 1,
+          "left": -13,
+          "top": 792
+        },
+        "scrollTop": 18,
+        "scrollLeft": 0
+      },
+      "viewport": {
+        "width": 1000,
+        "height": 563
+      },
+      "activeElement": {
+        "present": true,
+        "tag": "body",
+        "insideDock": false,
+        "hasFocus": false
+      }
+    },
+    "focusBeforeOpen": {
+      "present": true,
+      "tag": "body",
+      "insideDock": false,
+      "hasFocus": false
+    },
+    "focusAfterOpen": {
+      "present": true,
+      "tag": "iframe",
+      "insideDock": false,
+      "hasFocus": false
+    },
+    "focusUnchangedByOpen": true,
+    "after": {
+      "attachmentID": 2,
+      "pageAnchor": {
+        "page": 1,
+        "scale": 0.599,
+        "anchor": {
+          "page": 1,
+          "left": -25,
+          "top": 792
+        },
+        "scrollTop": 18,
+        "scrollLeft": 0
+      },
+      "activeElement": {
+        "present": true,
+        "tag": "iframe",
+        "insideDock": false,
+        "hasFocus": false
+      }
+    },
+    "anchorPreserved": true,
+    "horizontalAnchorStatus": "NOT RUN",
+    "dock": {
+      "rect": {
+        "x": 544,
+        "y": 41,
+        "width": 456,
+        "height": 522
+      },
+      "inlineCss": 456,
+      "rectCss": 456,
+      "availableWidthCss": 1000
+    },
+    "theme": {
+      "prefersDark": false,
+      "background": "rgb(255, 255, 255)",
+      "foreground": "rgba(0, 0, 0, 0.85)"
+    },
+    "chatBrowser": {
+      "x": 552,
+      "y": 206,
+      "width": 448,
+      "height": 394
+    },
+    "sidebarWidthSamples": [
+      {
+        "requestedCss": 360,
+        "expectedClampedCss": 360,
+        "inlineCss": 360,
+        "actualRectCss": 360,
+        "availableViewportCss": 1000,
+        "clampMatched": true,
+        "anchorPreserved": true,
+        "focusPreserved": true
+      },
+      {
+        "requestedCss": 480,
+        "expectedClampedCss": 480,
+        "inlineCss": 480,
+        "actualRectCss": 480,
+        "availableViewportCss": 1000,
+        "clampMatched": true,
+        "anchorPreserved": true,
+        "focusPreserved": true
+      },
+      {
+        "requestedCss": 720,
+        "expectedClampedCss": 640,
+        "inlineCss": 640,
+        "actualRectCss": 640,
+        "availableViewportCss": 1000,
+        "clampMatched": true,
+        "anchorPreserved": true,
+        "focusPreserved": true
+      }
+    ],
+    "mainViewport": {
+      "width": 1000,
+      "height": 600
+    },
+    "finalTabMatches": true,
+    "finalChatBrowser": {
+      "x": 368,
+      "y": 206,
+      "width": 632,
+      "height": 394
+    }
+  },
+  "page": {
+    "status": "BLOCKED",
+    "embedState": "loaded",
+    "actorReadiness": "challenge-required",
+    "actorWaitMs": 2893,
+    "origin": "https://chatgpt.com",
+    "notice": "challenge-required"
+  },
+  "checks": [
+    {
+      "name": "dedicated-profile-and-data-binding",
+      "status": "PASS",
+      "details": {}
+    },
+    {
+      "name": "final-product-xpi-is-active-and-hash-bound",
+      "status": "PASS",
+      "details": {
+        "active": true,
+        "versionMatches": true,
+        "hashMatches": true
+      }
+    },
+    {
+      "name": "two-synthetic-pdfs-share-one-parent",
+      "status": "PASS",
+      "details": {
+        "count": 2,
+        "sharedParent": true
+      }
+    },
+    {
+      "name": "reader-opens-first-attachment-from-synthetic-parent",
+      "status": "PASS",
+      "details": {
+        "itemMatches": true,
+        "attachmentCountOnParent": 2
+      }
+    },
+    {
+      "name": "opening-sidebar-does-not-steal-reader-focus",
+      "status": "PASS",
+      "details": {
+        "before": {
+          "present": true,
+          "tag": "body",
+          "insideDock": false,
+          "hasFocus": false
+        },
+        "after": {
+          "present": true,
+          "tag": "iframe",
+          "insideDock": false,
+          "hasFocus": false
+        }
+      }
+    },
+    {
+      "name": "sidebar-omits-redundant-paper-and-pdf-headings",
+      "status": "PASS",
+      "details": {}
+    },
+    {
+      "name": "reader-actions-are-directly-visible-without-a-menu",
+      "status": "PASS",
+      "details": {
+        "expectedActions": 8
+      }
+    },
+    {
+      "name": "product-sidebar-is-mounted-in-reader-dock",
+      "status": "PASS",
+      "details": {}
+    },
+    {
+      "name": "resize-handle-has-a-visible-hit-area",
+      "status": "PASS",
+      "details": {
+        "rect": {
+          "x": 640,
+          "y": 41,
+          "width": 8,
+          "height": 522
+        },
+        "cursor": "col-resize"
+      }
+    },
+    {
+      "name": "pointer-resize-changes-and-persists-sidebar-width",
+      "status": "PASS",
+      "details": {
+        "before": 360,
+        "after": 440,
+        "events": "synthetic-pointer"
+      }
+    },
+    {
+      "name": "keyboard-resize-keeps-the-reader-accessible",
+      "status": "PASS",
+      "details": {
+        "before": 440,
+        "after": 456
+      }
+    },
+    {
+      "name": "official-page-context-is-bound-to-current-pdf",
+      "status": "PASS",
+      "details": {}
+    },
+    {
+      "name": "official-page-actor-readiness",
+      "status": "BLOCKED",
+      "details": {
+        "actorReadiness": "challenge-required",
+        "officialOrigin": true,
+        "embedState": "loaded"
+      }
+    },
+    {
+      "name": "opening-sidebar-preserves-pdf-page-anchor",
+      "status": "PASS",
+      "details": {
+        "before": {
+          "page": 1,
+          "scale": 1.158,
+          "anchor": {
+            "page": 1,
+            "left": -13,
+            "top": 792
+          },
+          "scrollTop": 18,
+          "scrollLeft": 0
+        },
+        "after": {
+          "page": 1,
+          "scale": 0.599,
+          "anchor": {
+            "page": 1,
+            "left": -25,
+            "top": 792
+          },
+          "scrollTop": 18,
+          "scrollLeft": 0
+        }
+      }
+    },
+    {
+      "name": "visible-actions-fit-sidebar-width-360",
+      "status": "PASS",
+      "details": {
+        "buttons": 9
+      }
+    },
+    {
+      "name": "sidebar-width-360-sample-clamps-and-preserves-anchor-focus",
+      "status": "PASS",
+      "details": {
+        "requestedCss": 360,
+        "expectedClampedCss": 360,
+        "actualRectCss": 360,
+        "availableViewportCss": 1000,
+        "clampMatched": true,
+        "anchorPreserved": true,
+        "focusPreserved": true
+      }
+    },
+    {
+      "name": "visible-actions-fit-sidebar-width-480",
+      "status": "PASS",
+      "details": {
+        "buttons": 9
+      }
+    },
+    {
+      "name": "sidebar-width-480-sample-clamps-and-preserves-anchor-focus",
+      "status": "PASS",
+      "details": {
+        "requestedCss": 480,
+        "expectedClampedCss": 480,
+        "actualRectCss": 480,
+        "availableViewportCss": 1000,
+        "clampMatched": true,
+        "anchorPreserved": true,
+        "focusPreserved": true
+      }
+    },
+    {
+      "name": "visible-actions-fit-sidebar-width-720",
+      "status": "PASS",
+      "details": {
+        "buttons": 9
+      }
+    },
+    {
+      "name": "sidebar-width-720-sample-clamps-and-preserves-anchor-focus",
+      "status": "PASS",
+      "details": {
+        "requestedCss": 720,
+        "expectedClampedCss": 640,
+        "actualRectCss": 640,
+        "availableViewportCss": 1000,
+        "clampMatched": true,
+        "anchorPreserved": true,
+        "focusPreserved": true
+      }
+    },
+    {
+      "name": "final-xpi-rich-editor-multiline-insertion-in-gecko",
+      "status": "PASS",
+      "details": {}
+    },
+    {
+      "name": "rendered-text-verification-preserves-word-spacing",
+      "status": "PASS",
+      "details": {}
+    }
+  ],
+  "notRun": [
+    "login",
+    "ChatGPT question",
+    "answer inspection",
+    "resizing the Zotero window to 360/480/720 CSS px"
+  ],
+  "finishedAt": "2026-09-28T00:59:27.038Z"
+}
