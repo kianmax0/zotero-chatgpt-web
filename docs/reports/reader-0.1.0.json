@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "runId": "release-final-0928",
+  "runId": "release-universal-0928",
   "status": "BLOCKED",
-  "startedAt": "2026-09-28T00:06:17.830Z",
+  "startedAt": "2026-09-28T00:20:05.576Z",
   "build": {
     "product": {
       "addonId": "{c0f56f65-4363-4713-8f48-6bd18593c781}",
       "version": "0.1.0",
-      "sha256": "c3efd40c5103bf2b9c40dc2a9ae9e66ec81e3ec95e53a8b2b29ac6b41f727115"
+      "sha256": "a71b6ec1b8b1cc9e221777cc8abdd901b543b918f12a97e64f3fa83c76fa8420"
     },
     "driverSourceSha256": "8d2b7483f0971406a3f729834a6f297986bb61a49cbe48be35655b9a3dcfe6e2"
   },
@@ -18,27 +18,27 @@
   },
   "synthetic": {
     "parent": {
-      "key": "UEUNLYYM",
+      "key": "NVRW7XLS",
       "type": "journalArticle",
       "title": "Synthetic Zotero ChatGPT Web reader host test",
       "attachmentCount": 2
     },
     "attachments": [
       {
-        "key": "SSMF6PRM",
+        "key": "CG9WFNGD",
         "id": 2,
         "parentID": 1,
         "filename": "synthetic-paper-a.pdf",
         "title": "Synthetic Paper A: Contextual inference",
-        "sha256": "76e3964852c42015de196b96c6811c9e22e906a1d51edb7b49e2fd28c3c19c35"
+        "sha256": "3797cf14f4b1d8a1ce096b4fe9b9640913dee913285bee1167c0b1a420663e27"
       },
       {
-        "key": "9JF4CK75",
+        "key": "9W2P8EKQ",
         "id": 3,
         "parentID": 1,
         "filename": "synthetic-paper-b.pdf",
         "title": "Synthetic Paper B: Measurement selection",
-        "sha256": "c21f41fca8674ed31f79208f1e69526c1a8ba06d96a2d87316d1b7e4ed975fc9"
+        "sha256": "137b2ea4497389f1a3499dfaf86e93ff464856ec28578125076a532154cd97a9"
       }
     ]
   },
@@ -173,7 +173,7 @@
     "status": "BLOCKED",
     "embedState": "loaded",
     "actorReadiness": "challenge-required",
-    "actorWaitMs": 2578,
+    "actorWaitMs": 2817,
     "origin": "https://chatgpt.com",
     "notice": "challenge-required"
   },
@@ -352,5 +352,5 @@
     "answer inspection",
     "resizing the Zotero window to 360/480/720 CSS px"
   ],
-  "finishedAt": "2026-09-28T00:06:23.561Z"
+  "finishedAt": "2026-09-28T00:20:11.638Z"
 }

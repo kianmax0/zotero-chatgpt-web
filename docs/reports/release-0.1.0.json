@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "sourceCommit": "4492e4cf8119ec2f59e544b23c8c1dc898d7956f",
+  "sourceCommit": "11f8af2893d6afc690a8fada027ea45fc773ced2",
   "artifact": {
     "filename": "zotero-chatgpt-web-0.1.0.xpi",
-    "sha256": "c3efd40c5103bf2b9c40dc2a9ae9e66ec81e3ec95e53a8b2b29ac6b41f727115",
+    "sha256": "a71b6ec1b8b1cc9e221777cc8abdd901b543b918f12a97e64f3fa83c76fa8420",
     "allowlistedFiles": 11
   },
   "environment": {
@@ -18,7 +18,7 @@
     "lint": "PASS",
     "unitTests": {
       "status": "PASS",
-      "vitest": 29,
+      "vitest": 30,
       "actors": 24,
       "skipped": 0
     },
@@ -27,23 +27,24 @@
   },
   "cleanCheckout": {
     "status": "PASS",
-    "sourceCommit": "4492e4cf8119ec2f59e544b23c8c1dc898d7956f",
+    "sourceCommit": "11f8af2893d6afc690a8fada027ea45fc773ced2",
     "byteIdentical": true
   },
   "crossPlatformCI": {
     "status": "PASS",
-    "runId": 36361174729,
-    "url": "https://github.com/kianmax0/zotero-chatgpt-web/actions/runs/36361174729",
+    "runId": 36361812318,
+    "url": "https://github.com/kianmax0/zotero-chatgpt-web/actions/runs/36361812318",
     "platforms": {
       "ubuntu-latest": "PASS",
       "windows-latest": "PASS",
       "macos-latest": "PASS"
     },
-    "identicalPackages": "PASS"
+    "identicalPackages": "PASS",
+    "downloadedArtifactsMatchFinalXpi": true
   },
   "reader": {
     "report": "reader-0.1.0.json",
-    "runId": "release-final-0928",
+    "runId": "release-universal-0928",
     "status": "PASS",
     "trustedMouseCapture": "NOT RUN",
     "horizontalAnchor": "NOT RUN",
