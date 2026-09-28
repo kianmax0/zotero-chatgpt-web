@@ -4,9 +4,13 @@ import {
   findChatGPTComposer,
   getPageGate,
   hasAcceptedRequestMarker,
+  composerTextMatches,
   inspectChatGPTComposer,
   inspectChatGPTSendControl,
   isChatGPTDocument,
+  readChatGPTComposer,
+  replaceChatGPTComposer,
+  sameRenderedText,
 } from '../../actors/chatgpt-dom.mjs';
 
 function fixture({ href = 'https://chatgpt.com/', editors = [], nested = false } = {}) {
@@ -65,13 +69,13 @@ test('send control must be unique and explicitly identified', () => {
   const second = { localName: 'button', disabled: false, getAttribute: name => name === 'data-testid' ? 'send-button' : null };
   const form = {
     contains: element => element === first || element === second,
-    querySelectorAll: selector => selector === 'button[data-testid="send-button"], button[aria-label="Send prompt"]' ? [first, second] : [],
+    querySelectorAll: selector => selector.includes('button[data-testid="send-button"]') ? [first, second] : [],
     querySelector: () => null,
   };
   editor.closest = selector => selector === 'form' ? form : null;
   const document = fixture({ editors: [editor] });
   document.querySelectorAll = selector => {
-    if (selector === 'button[data-testid="send-button"], button[aria-label="Send prompt"]') return [first, second];
+    if (selector.includes('button[data-testid="send-button"]')) return [first, second];
     if (selector === 'input[type="password"], input[type="email"], input[autocomplete="username"], input[autocomplete="current-password"]') return [];
     return fixture({ editors: [editor] }).querySelectorAll(selector);
   };
@@ -86,11 +90,92 @@ test('an unlabeled page button is not accepted as a send control', () => {
   assert.equal(inspectChatGPTSendControl(document, editor).status, 'missing');
 });
 
+test('discovers the official Send message button in the editor form', () => {
+  const editor = { localName: 'div', proseMirror: true,
+    classList: { contains: name => name === 'ProseMirror' },
+    getAttribute: name => name === 'contenteditable' ? 'true' : null };
+  const send = { localName: 'button', type: 'submit', disabled: false,
+    getAttribute: name => name === 'aria-label' ? 'Send message' : null };
+  const form = { contains: value => value === editor || value === send,
+    querySelectorAll: selector => selector.includes('aria-label="Send message"') ? [send] : [],
+    querySelector: () => null };
+  editor.closest = selector => selector === 'form' ? form : null;
+  assert.deepEqual(inspectChatGPTSendControl(fixture({ editors: [editor] }), editor), { status: 'found', control: send });
+});
+
+test('trusted Send message click is routed through the intercepted manual-send path', async () => {
+  globalThis.JSWindowActorChild = class {};
+  const { ZoteroChatGPTWebOfficialChatChild } = await import('../../actors/ChatGPTWebChild.mjs');
+  const editor = { localName: 'div', id: 'prompt-textarea', proseMirror: true, textContent: 'Keep this draft',
+    classList: { contains: name => name === 'ProseMirror' },
+    getAttribute: name => name === 'contenteditable' ? 'true' : null };
+  const send = { localName: 'button', type: 'submit', disabled: false,
+    matches: selector => selector.includes('aria-label="Send message"'),
+    getAttribute: name => name === 'aria-label' ? 'Send message' : name === 'type' ? 'submit' : null,
+    closest(selector) { return selector === 'button' ? this : selector === 'form' ? form : null; } };
+  const form = { contains: value => value === editor || value === send,
+    querySelectorAll: selector => selector.includes('aria-label="Send message"') ? [send] : [],
+    querySelector: () => null };
+  editor.closest = selector => selector === 'form' ? form : null;
+  const document = fixture({ editors: [editor] });
+  const actor = new ZoteroChatGPTWebOfficialChatChild();
+  actor.document = document;
+  actor.sendAsyncMessage = () => {};
+  const routed = [];
+  actor.submitQuestion = question => { routed.push(question); return Promise.resolve({ status: 'accepted' }); };
+  const event = { type: 'click', isTrusted: true, target: send, prevented: false,
+    preventDefault() { this.prevented = true; }, stopImmediatePropagation() {} };
+
+  actor.handleEvent(event);
+
+  assert.equal(event.prevented, true);
+  assert.deepEqual(routed, ['Keep this draft']);
+});
+
+test('ProseMirror replacement accepts browser-added paragraph linebreaks only', () => {
+  const text = 'Question\n\nSelected passage\nA synthetic paragraph.\n\n[request marker]';
+  const editor = { localName: 'div', id: 'prompt-textarea', proseMirror: true, textContent: '',
+    classList: { contains: name => name === 'ProseMirror' },
+    getAttribute: name => name === 'contenteditable' ? 'true' : null, focus() {} };
+  Object.defineProperty(editor, 'innerText', { get() { return this.textContent; }, set(value) { this.textContent = value; } });
+  const selection = { rangeCount: 0, removeAllRanges() {}, addRange() {} };
+  const view = { getSelection: () => selection };
+  const document = { defaultView: view, activeElement: editor,
+    createRange: () => ({ selectNodeContents() {}, commonAncestorContainer: { isConnected: true } }),
+    execCommand(_command, _showUI, inserted) {
+      editor.innerText = inserted.replace(/\n+/gu, breaks => breaks.length > 1 ? '\n\n\n\n\n' : '\n\n');
+      return true;
+    } };
+  editor.ownerDocument = document;
+
+  assert.equal(replaceChatGPTComposer(editor, text), true);
+  assert.equal(sameRenderedText(readChatGPTComposer(editor), text), true);
+  assert.equal(sameRenderedText('one\r\nline', 'one\n\nline'), true);
+  assert.equal(sameRenderedText('A word', 'Aword'), false);
+  assert.equal(sameRenderedText('two words', 'two  words'), false);
+});
+
+test('textarea matching normalizes line endings but rejects dropped blank lines', () => {
+  const makeTextarea = normalize => {
+    const editor = { localName: 'textarea', id: 'prompt-textarea', value: '', getAttribute: () => null,
+      dispatchEvent() { this.value = normalize(this.value); } };
+    editor.ownerDocument = { defaultView: { InputEvent: class {} } };
+    return editor;
+  };
+  const lineEndingEditor = makeTextarea(value => value.replace(/\r\n/gu, '\n'));
+  assert.equal(replaceChatGPTComposer(lineEndingEditor, 'first\r\nsecond'), true);
+  assert.equal(composerTextMatches(lineEndingEditor, 'first\nsecond'), true);
+
+  const droppedBlankLineEditor = makeTextarea(value => value.replace('\n\n', '\n'));
+  assert.equal(replaceChatGPTComposer(droppedBlankLineEditor, 'first\n\nsecond'), false);
+  assert.equal(composerTextMatches(droppedBlankLineEditor, 'first\n\nsecond'), false);
+});
+
 test('generic submit buttons are accepted only for the safe recognized mobile form', () => {
   const submit = { localName: 'button', type: 'submit', disabled: false };
   const mobile = { localName: 'textarea', id: 'mobile-composer-prompt', type: 'text', getAttribute: () => null };
   const form = { contains: value => value === mobile || value === submit,
-    querySelectorAll: selector => selector === 'button[data-testid="send-button"], button[aria-label="Send prompt"]' ? [] : selector === 'button[type="submit"]' ? [submit] : [],
+    querySelectorAll: selector => selector.includes('button[data-testid="send-button"]') ? [] : selector === 'button[type="submit"]' ? [submit] : [],
     querySelector: () => null, getAttribute: () => 'https://chatgpt.com/conversation' };
   mobile.closest = selector => selector === 'form' ? form : null;
   const document = fixture({ editors: [mobile] });
@@ -170,6 +255,37 @@ test('Ask in sidechat stages text without calling a send control', async () => {
   assert.deepEqual(events, ['input']);
 });
 
+test('staging compares the complete draft after browser paragraph normalization', async () => {
+  globalThis.JSWindowActorChild = class {};
+  const { ZoteroChatGPTWebOfficialChatChild } = await import('../../actors/ChatGPTWebChild.mjs');
+  const window = { top: null, setTimeout };
+  window.top = window;
+  const editor = { localName: 'div', id: 'prompt-textarea', proseMirror: true, textContent: 'Existing draft',
+    classList: { contains: name => name === 'ProseMirror' },
+    getAttribute: name => name === 'contenteditable' ? 'true' : null, focus() {} };
+  Object.defineProperty(editor, 'innerText', { get() { return this.textContent; }, set(value) { this.textContent = value; } });
+  const selection = { rangeCount: 0, removeAllRanges() {}, addRange() {} };
+  window.getSelection = () => selection;
+  const document = fixture({ editors: [editor] });
+  document.defaultView = window;
+  document.activeElement = editor;
+  document.createRange = () => ({ selectNodeContents() {}, commonAncestorContainer: { isConnected: true } });
+  document.execCommand = (_command, _showUI, inserted) => {
+    editor.innerText = inserted.replace(/\n+/gu, breaks => breaks.length > 1 ? '\n\n\n\n\n' : '\n\n');
+    return true;
+  };
+  editor.ownerDocument = document;
+  editor.closest = selector => selector === 'form' ? null : null;
+  const actor = new ZoteroChatGPTWebOfficialChatChild();
+  actor.document = document;
+  actor.contentWindow = window;
+
+  const result = await actor.receiveMessage({ name: 'stage', data: { text: 'Selected passage' } });
+
+  assert.deepEqual(result, { status: 'staged', sent: false });
+  assert.equal(sameRenderedText(readChatGPTComposer(editor), 'Existing draft\n\nSelected passage'), true);
+});
+
 test('acceptance reads only the marked user message and returns a boolean', () => {
   const document = fixture();
   const userMessage = { textContent: 'Question [Zotero ChatGPT Web request abc-123]' };
@@ -194,7 +310,7 @@ test('submission clicks once, rejects duplicate requests, and returns boolean ac
     click() { sendClicks += 1; submittedText = composer.value; userMessages.push({ textContent: submittedText }); } };
   const form = {
     contains: element => element === sendButton,
-    querySelectorAll: selector => selector === 'button[data-testid="send-button"], button[aria-label="Send prompt"]' ? [sendButton] : [],
+    querySelectorAll: selector => selector.includes('button[data-testid="send-button"]') ? [sendButton] : [],
     querySelector: () => null,
   };
   const composer = { localName: 'textarea', id: 'prompt-textarea', type: 'text', value: '', ownerDocument: null,
@@ -239,7 +355,7 @@ test('trusted Enter is frozen and routed through the actor; IME and Shift+Enter 
   const send = { localName: 'button', disabled: false, getAttribute: name => name === 'data-testid' ? 'send-button' : null };
   const form = {
     contains: element => element === editor || element === send,
-    querySelectorAll: selector => selector === 'button[data-testid="send-button"], button[aria-label="Send prompt"]' ? [send] : [],
+    querySelectorAll: selector => selector.includes('button[data-testid="send-button"]') ? [send] : [],
     querySelector: () => null,
   };
   editor.closest = selector => selector === 'form' ? form : null;
@@ -281,7 +397,7 @@ test('trusted send-button click and form submit both route through the frozen ac
     getAttribute: name => name === 'data-testid' ? 'send-button' : null,
     closest(selector) { return selector === 'button' ? this : selector === 'form' ? form : null; } };
   const form = { contains: value => value === editor || value === send,
-    querySelectorAll: selector => selector === 'button[data-testid="send-button"], button[aria-label="Send prompt"]' ? [send] : [],
+    querySelectorAll: selector => selector.includes('button[data-testid="send-button"]') ? [send] : [],
     querySelector: () => null };
   editor.closest = selector => selector === 'form' ? form : null;
   const view = { top: null }; view.top = view;
@@ -415,6 +531,55 @@ test('a direct selected-passage send waits for the button that appears after com
   const result = await actor.receiveMessage({ name: 'submitQuestion', data: { question: 'Explain the frozen selected passage.' } });
   assert.equal(result.status, 'accepted');
   assert.equal(clicks, 1);
+});
+
+test('ProseMirror full submission tolerates browser paragraph linebreaks and clicks once', async () => {
+  globalThis.JSWindowActorChild = class {};
+  const { ZoteroChatGPTWebOfficialChatChild } = await import('../../actors/ChatGPTWebChild.mjs');
+  const window = { top: null, setTimeout, crypto: { randomUUID: () => 'rich-request' } };
+  window.top = window;
+  const userMessages = [];
+  let clicks = 0;
+  let submitted = '';
+  const send = { localName: 'button', type: 'submit', disabled: false,
+    getAttribute: name => name === 'aria-label' ? 'Send message' : null,
+    click() { clicks += 1; submitted = editor.innerText; userMessages.push({ textContent: submitted }); } };
+  const form = { contains: value => value === editor || value === send,
+    querySelectorAll: selector => selector.includes('aria-label="Send message"') ? [send] : [],
+    querySelector: () => null };
+  const editor = { localName: 'div', id: 'prompt-textarea', proseMirror: true, textContent: '',
+    classList: { contains: name => name === 'ProseMirror' },
+    getAttribute: name => name === 'contenteditable' ? 'true' : null,
+    closest: selector => selector === 'form' ? form : null, focus() {} };
+  Object.defineProperty(editor, 'innerText', { get() { return this.textContent; }, set(value) { this.textContent = value; } });
+  const selection = { rangeCount: 0, removeAllRanges() {}, addRange() {} };
+  window.getSelection = () => selection;
+  const document = fixture({ editors: [editor] });
+  document.defaultView = window;
+  document.readyState = 'complete';
+  document.activeElement = editor;
+  document.createRange = () => ({ selectNodeContents() {}, commonAncestorContainer: { isConnected: true } });
+  document.execCommand = (_command, _showUI, inserted) => {
+    editor.innerText = inserted.replace(/\n+/gu, breaks => breaks.length > 1 ? '\n\n\n\n\n' : '\n\n');
+    return true;
+  };
+  document.querySelector = selector => selector === 'button[data-testid="stop-button"]' ? null : null;
+  const originalQuery = document.querySelectorAll;
+  document.querySelectorAll = selector => selector === '[data-message-author-role="user"]' ? userMessages : originalQuery(selector);
+  editor.ownerDocument = document;
+  const actor = new ZoteroChatGPTWebOfficialChatChild();
+  actor.document = document;
+  actor.contentWindow = window;
+  actor.sendAsyncMessage = () => {};
+  actor.sendQuery = async (_name, data) => ({ status: 'prepared', marker: data.transaction,
+    hasAutomaticContext: true,
+    text: `Question\n\nSelected passage\nA synthetic paragraph.\n\n[Zotero ChatGPT Web request ${data.transaction}]` });
+
+  const result = await actor.receiveMessage({ name: 'submitQuestion', data: { question: 'Question' } });
+
+  assert.equal(result.status, 'accepted', JSON.stringify(result));
+  assert.equal(clicks, 1);
+  assert.equal(submitted.match(/\[Zotero ChatGPT Web request rich-request\]/gu)?.length, 1);
 });
 
 test('unmarked top-level ChatGPT pages receive no event interception or actor commands', async () => {

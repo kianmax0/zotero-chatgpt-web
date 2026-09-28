@@ -10,6 +10,7 @@ import {
   isKnownSendControl,
   isChatGPTDocument,
   isSubmitControl,
+  composerTextMatches,
   readChatGPTComposer,
   replaceChatGPTComposer,
 } from './chatgpt-dom.mjs';
@@ -38,10 +39,6 @@ function firstDraft(editors) {
     if (value.trim()) return value;
   }
   return '';
-}
-
-function sameRenderedText(left, right) {
-  return String(left).replace(/\s+/gu, '') === String(right).replace(/\s+/gu, '');
 }
 
 function markerCount(text, marker) {
@@ -170,11 +167,11 @@ export class ZoteroChatGPTWebOfficialChatChild extends JSWindowActorChild {
     const composer = result.composer;
     const current = readChatGPTComposer(composer);
     const staged = current ? `${current}\n\n${text}` : text;
-    if (!replaceChatGPTComposer(composer, staged) || !readChatGPTComposer(composer).includes(text)) {
+    if (!replaceChatGPTComposer(composer, staged) || !composerTextMatches(composer, staged)) {
       return { status: 'blocked', reason: 'insert-failed' };
     }
     await new Promise(resolve => this.contentWindow.setTimeout(resolve, 0));
-    if (findChatGPTComposer(this.document) !== composer || !readChatGPTComposer(composer).includes(text)) {
+    if (findChatGPTComposer(this.document) !== composer || !composerTextMatches(composer, staged)) {
       return { status: 'blocked', reason: 'insert-failed' };
     }
     composer.focus?.();
@@ -229,7 +226,7 @@ export class ZoteroChatGPTWebOfficialChatChild extends JSWindowActorChild {
 
       const send = await this.waitForSend(originalDocument, originalWindow, composer, submission, transaction);
       if (!send) {
-        const reason = sameRenderedText(readChatGPTComposer(composer), submission) ? 'unsupported-send' : 'draft-changed';
+        const reason = composerTextMatches(composer, submission) ? 'unsupported-send' : 'draft-changed';
         return this.blocked(reason, transaction);
       }
       if (send.ambiguous) return this.blocked('ambiguous-send', transaction);
@@ -267,7 +264,7 @@ export class ZoteroChatGPTWebOfficialChatChild extends JSWindowActorChild {
     return this.pollUntil(document, window, SEND_READY_TIMEOUT_MS, () => {
       if (document.querySelector(STOP_SELECTOR)) return { done: true, value: { busy: true } };
       const current = readChatGPTComposer(composer);
-      if (!current.includes(requestMarker(marker)) || !sameRenderedText(current, expected)) return { done: true, value: null };
+      if (!current.includes(requestMarker(marker)) || !composerTextMatches(composer, expected)) return { done: true, value: null };
       const result = inspectChatGPTSendControl(document, composer);
       if (result.status === 'ambiguous-send') return { done: true, value: { ambiguous: true } };
       if (result.status === 'found' && !result.control.disabled) return { done: true, value: { control: result.control, busy: false } };

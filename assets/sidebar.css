@@ -41,11 +41,11 @@
 
 [data-zchatgptweb-resizer]:hover::before,
 [data-zchatgptweb-resizer]:focus-visible::before {
-  background: LinkText;
+  background: light-dark(#1d4ed8, #8ab4ff);
 }
 
 [data-zchatgptweb-resizer]:focus-visible {
-  outline: 2px solid var(--zchatgptweb-focus, LinkText);
+  outline: 2px solid light-dark(#1d4ed8, #8ab4ff);
   outline-offset: -2px;
 }
 
@@ -63,10 +63,11 @@
 }
 
 .zchatgptweb-shell {
-  --zchatgptweb-border: color-mix(in srgb, CanvasText 13%, Canvas);
+  --zchatgptweb-border: color-mix(in srgb, CanvasText 15%, Canvas);
   --zchatgptweb-subtle: color-mix(in srgb, CanvasText 62%, Canvas);
-  --zchatgptweb-hover: color-mix(in srgb, CanvasText 8%, Canvas);
-  --zchatgptweb-focus: LinkText;
+  --zchatgptweb-hover: color-mix(in srgb, CanvasText 7%, Canvas);
+  --zchatgptweb-focus: light-dark(#1d4ed8, #8ab4ff);
+  --zchatgptweb-error: light-dark(#b4232f, #ff8f99);
   color: CanvasText;
   background: Canvas;
   color-scheme: light dark;
@@ -89,71 +90,80 @@
 }
 
 .zchatgptweb-shell__header {
-  position: relative;
   flex: 0 0 auto;
   min-width: 0;
-  padding: 7px 10px 2px;
+  padding: 6px 8px 5px;
   background: Canvas;
+  border-bottom: 1px solid var(--zchatgptweb-border);
 }
 
-.zchatgptweb-shell__bar {
+.zchatgptweb-shell__toolbar {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 3px;
   min-width: 0;
-  min-height: 42px;
 }
 
-.zchatgptweb-shell__identity {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
+.zchatgptweb-shell__toolbar--primary {
+  min-height: 36px;
 }
 
-.zchatgptweb-shell__paper,
-.zchatgptweb-shell__pdf {
-  overflow: hidden;
-  text-overflow: ellipsis;
+.zchatgptweb-shell__toolbar--utilities {
+  padding-top: 2px;
+  gap: 1px;
+}
+
+.zchatgptweb-shell__toolbar--utilities .zchatgptweb-shell__button {
+  padding-inline: 4px;
+}
+
+.zchatgptweb-shell__brand {
+  flex: 1 1 70px;
+  min-width: 65px;
+  padding-inline: 3px;
+  font-size: 0.8em;
+  font-weight: 650;
+  letter-spacing: 0.015em;
   white-space: nowrap;
 }
 
-.zchatgptweb-shell__paper {
-  font-weight: 600;
-  line-height: 1.35;
-}
-
-.zchatgptweb-shell__pdf {
-  color: var(--zchatgptweb-subtle);
-  font-size: 0.84em;
-  line-height: 1.3;
-}
-
-.zchatgptweb-shell__tools {
-  display: flex;
-  flex: 0 0 auto;
+.zchatgptweb-shell__icon-button,
+.zchatgptweb-shell__button {
+  display: inline-flex;
   align-items: center;
-  gap: 2px;
-}
-
-.zchatgptweb-shell__icon-button {
-  display: inline-grid;
-  place-items: center;
-  flex: 0 0 40px;
-  width: 40px;
-  height: 40px;
-  padding: 0;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-width: 36px;
+  min-height: 36px;
+  padding: 0 8px;
+  gap: 5px;
   color: inherit;
   background: transparent;
-  border: 0;
-  border-radius: 9px;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  font: inherit;
+  font-size: 0.78em;
+  line-height: 1.2;
   cursor: pointer;
 }
 
+.zchatgptweb-shell__icon-button {
+  width: 36px;
+  padding: 0;
+}
+
+.zchatgptweb-shell__button--new {
+  color: var(--zchatgptweb-focus);
+  border-color: var(--zchatgptweb-border);
+}
+
 .zchatgptweb-shell__icon-button svg,
-.zchatgptweb-shell__menu-item svg {
+.zchatgptweb-shell__button svg {
   display: block;
-  width: 19px;
-  height: 19px;
+  flex: 0 0 auto;
+  width: 17px;
+  height: 17px;
   fill: none;
   stroke: currentColor;
   stroke-linecap: round;
@@ -162,51 +172,51 @@
 }
 
 .zchatgptweb-shell__icon-button:hover,
-.zchatgptweb-shell__menu-item:hover {
+.zchatgptweb-shell__button:hover {
   background: var(--zchatgptweb-hover);
 }
 
+.zchatgptweb-shell__button--new:hover {
+  background: color-mix(in srgb, var(--zchatgptweb-focus) 8%, Canvas);
+}
+
 .zchatgptweb-shell__icon-button:focus-visible,
-.zchatgptweb-shell__menu-item:focus-visible,
-.zchatgptweb-shell__notice-action:focus-visible {
+.zchatgptweb-shell__button:focus-visible {
   outline: 2px solid var(--zchatgptweb-focus);
-  outline-offset: 2px;
+  outline-offset: 1px;
+}
+
+.zchatgptweb-shell__notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  min-width: 0;
+  margin-top: 4px;
+  padding: 7px 8px;
+  color: CanvasText;
+  background: color-mix(in srgb, CanvasText 4%, Canvas);
+  border-radius: 4px;
+  font-size: 0.8em;
+  line-height: 1.35;
+}
+
+.zchatgptweb-shell__notice[data-tone="error"] {
+  color: var(--zchatgptweb-error);
+  background: color-mix(in srgb, #c62836 7%, Canvas);
 }
 
 .zchatgptweb-shell__notice-icon {
   display: inline-grid;
   place-items: center;
-}
-
-.zchatgptweb-shell__notice {
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  justify-content: flex-start;
-  gap: 2px;
-  min-height: 40px;
-  padding: 0;
-  color: CanvasText;
-  font-size: 0.88em;
-}
-
-.zchatgptweb-shell__notice[data-tone="error"] {
-  color: #c43d3d;
-}
-
-.zchatgptweb-shell__notice[data-tone="success"] {
-  border-inline-start: 3px solid #25845b;
-}
-
-.zchatgptweb-shell__notice-action {
-  margin-left: auto;
-  color: LinkText;
+  flex: 0 0 18px;
+  width: 18px;
+  height: 20px;
 }
 
 .zchatgptweb-shell__notice-icon svg {
   display: block;
-  width: 19px;
-  height: 19px;
+  width: 17px;
+  height: 17px;
   fill: none;
   stroke: currentColor;
   stroke-linecap: round;
@@ -214,29 +224,27 @@
   stroke-width: 1.8;
 }
 
-.zchatgptweb-shell__notice-icon {
-  width: 28px;
-  height: 40px;
-}
-
 .zchatgptweb-shell__notice[data-tone="error"] .zchatgptweb-shell__notice-icon {
-  color: #c43d3d;
+  color: var(--zchatgptweb-error);
 }
 
-.zchatgptweb-shell__notice[data-tone="success"] .zchatgptweb-shell__notice-icon {
-  color: #25845b;
+.zchatgptweb-shell__notice-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
-.zchatgptweb-visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
+.zchatgptweb-shell__notice-action {
+  flex: 0 0 auto;
+  min-height: 30px;
+  margin: -3px -4px -3px 0;
+  color: var(--zchatgptweb-focus);
   white-space: nowrap;
-  border: 0;
+}
+
+.zchatgptweb-shell__notice-action[hidden],
+.zchatgptweb-shell__notice[hidden] {
+  display: none;
 }
 
 .zchatgptweb-shell__anchor {
@@ -247,68 +255,30 @@
   background: Canvas;
 }
 
-.zchatgptweb-shell__menu {
-  position: absolute;
-  z-index: 10;
-  top: 7px;
-  right: 54px;
-  display: flex;
-  flex-direction: column;
-  width: 50px;
-  max-height: min(70vh, 520px);
-  overflow: auto;
-  padding: 4px;
-  color: CanvasText;
-  background: Canvas;
-  border: 1px solid var(--zchatgptweb-border);
-  border-radius: 10px;
-  box-shadow: 0 8px 24px color-mix(in srgb, CanvasText 15%, transparent);
-}
-
-.zchatgptweb-shell__menu[hidden],
-.zchatgptweb-shell__notice[hidden] {
-  display: none;
-}
-
-.zchatgptweb-shell__menu-item {
-  display: grid;
-  place-items: center;
-  flex: 0 0 40px;
-  width: 40px;
-  min-width: 40px;
-  min-height: 40px;
-  padding: 0;
-  color: inherit;
-  background: transparent;
-  border: 0;
-  border-radius: 7px;
-  font: inherit;
-  cursor: pointer;
-}
-
-.zchatgptweb-shell__menu-item svg {
-  width: 20px;
-  height: 20px;
-  color: var(--zchatgptweb-subtle);
-}
-
-@media (max-width: 390px) {
+@media (max-width: 340px) {
   .zchatgptweb-shell__header {
+    padding-inline: 5px;
+  }
+
+  .zchatgptweb-shell__toolbar {
+    gap: 1px;
+  }
+
+  .zchatgptweb-shell__brand {
+    flex-basis: 55px;
+    min-width: 55px;
+  }
+
+  .zchatgptweb-shell__icon-button,
+  .zchatgptweb-shell__button {
+    min-width: 34px;
+    min-height: 34px;
     padding-inline: 6px;
   }
 
-  .zchatgptweb-shell__bar {
-    gap: 3px;
-  }
-
   .zchatgptweb-shell__icon-button {
-    flex-basis: 38px;
-    width: 38px;
-    height: 38px;
-  }
-
-  .zchatgptweb-shell__menu {
-    right: 48px;
+    width: 34px;
+    padding: 0;
   }
 }
 

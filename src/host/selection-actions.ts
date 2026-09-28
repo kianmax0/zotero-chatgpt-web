@@ -56,7 +56,7 @@ const STYLE = `
 .zchatgptweb-selection-bar { position: absolute; z-index: 100; display: flex; gap: 2px; padding: 3px; border-radius: 6px; color-scheme: inherit; background: var(--material-toolbar, var(--material-background, Canvas)); border: 1px solid var(--color-panedivider, GrayText); box-shadow: 0 2px 8px rgba(0,0,0,.12); font: -apple-system-body; font-size: 12px; color: var(--fill-primary, CanvasText); }
 .zchatgptweb-selection-bar button { font: inherit; color: inherit; background: transparent; border: 0; border-radius: 4px; padding: 3px 8px; cursor: pointer; white-space: nowrap; }
 .zchatgptweb-selection-bar button:hover { background: var(--fill-quinary, rgba(0,0,0,.06)); }
-.zchatgptweb-selection-bar button:focus-visible { outline: 2px solid AccentColor; outline-offset: 1px; }
+.zchatgptweb-selection-bar button:focus-visible { outline: 2px solid light-dark(#1d4ed8, #8ab4ff); outline-offset: 1px; }
 .zchatgptweb-selection-bar .zchatgptweb-separator { width: 1px; background: var(--color-panedivider, GrayText); margin: 2px 0; }
 .selection-popup .custom-sections .section:has(> [data-zchatgptweb-sentinel]) { display: none; }
 `;

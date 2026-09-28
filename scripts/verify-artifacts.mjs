@@ -18,6 +18,13 @@ const forbiddenNames = new Set(["auth.json", "auth.json.enc", "credentials.json"
 const nodeBuiltins = new Set(builtinModules.map(name => name.replace(/^node:/u, "").split("/")[0]));
 const importSpecifier = /(?:\bfrom\s+|\bimport\s*(?:\(\s*)?|\brequire\s*\(\s*)["']([^"']+)["']/gu;
 const textExtensions = new Set([".js", ".mjs", ".json", ".css", ".xhtml", ".ftl", ".txt", ".md", ".svg"]);
+const projectRoot = path.resolve(import.meta.dirname, "..");
+
+export async function resolveDefaultXpiPath(root = projectRoot) {
+  const manifest = JSON.parse(await readFile(path.join(root, "manifest.json"), "utf8"));
+  if (typeof manifest.version !== "string" || !manifest.version) throw new Error("Manifest version is missing");
+  return path.join(root, "dist", `zotero-chatgpt-web-${manifest.version}.xpi`);
+}
 
 async function listFiles(directory, prefix = "") {
   const result = [];
@@ -115,9 +122,15 @@ export async function verifyXpi(filePath) {
 
 if (fileURLToPath(import.meta.url) === path.resolve(process.argv[1] ?? "")) {
   const argIndex = process.argv.indexOf("--xpi");
-  const archive = argIndex >= 0 ? path.resolve(process.argv[argIndex + 1] ?? "") : path.resolve("dist/zotero-chatgpt-web-0.1.0.xpi");
-  verifyXpi(archive).then(result => console.log(`Verified XPI (${result.files.length} files; SHA-256 ${result.digest})`)).catch(error => {
-    console.error(error instanceof Error ? error.message : error);
+  const suppliedPath = argIndex < 0 ? undefined : process.argv[argIndex + 1];
+  if (argIndex >= 0 && (!suppliedPath || suppliedPath.startsWith("--"))) {
+    console.error("--xpi requires a path");
     process.exitCode = 1;
-  });
+  } else {
+    const archive = suppliedPath ? path.resolve(suppliedPath) : await resolveDefaultXpiPath();
+    verifyXpi(archive).then(result => console.log(`Verified XPI (${result.files.length} files; SHA-256 ${result.digest})`)).catch(error => {
+      console.error(error instanceof Error ? error.message : error);
+      process.exitCode = 1;
+    });
+  }
 }

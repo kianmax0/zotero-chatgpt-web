@@ -187,13 +187,15 @@ function runHostInspection(config) {
       await check("opening-sidebar-does-not-steal-reader-focus", report.reader.focusUnchangedByOpen, {
         before: report.reader.focusBeforeOpen, after: report.reader.focusAfterOpen,
       });
-      const identity = shell.querySelector('.zchatgptweb-shell__identity');
-      const paperLabel = identity?.querySelector('.zchatgptweb-shell__paper')?.textContent?.trim() ?? "";
-      const pdfLabel = identity?.querySelector('.zchatgptweb-shell__pdf')?.textContent?.trim() ?? "";
-      const expectedPaper = parent.getField("title");
-      const expectedPdf = attachments[0].getField("title");
-      const identityBound = paperLabel === expectedPaper && pdfLabel === expectedPdf;
-      await check("product-shell-identifies-current-paper-and-pdf", identityBound, { paperMatches: paperLabel === expectedPaper, pdfMatches: pdfLabel === expectedPdf });
+      await check("sidebar-omits-redundant-paper-and-pdf-headings", !shell.querySelector('.zchatgptweb-shell__paper, .zchatgptweb-shell__pdf, [role="menu"]'));
+      const requiredActions = ["New ChatGPT chat", "Reload ChatGPT", "Settings", "Close ChatGPT sidebar",
+        "Copy paper details", "Copy PDF file", "Return to selected passage", "Bind this conversation"];
+      const directlyVisible = requiredActions.every(label => {
+        const button = Array.from(shell.querySelectorAll("button")).find(item => item.getAttribute("aria-label") === label);
+        return button && box(button)?.width >= 24 && box(button)?.height >= 24
+          && readerDoc.defaultView.getComputedStyle(button).visibility === "visible";
+      });
+      await check("reader-actions-are-directly-visible-without-a-menu", directlyVisible, { expectedActions: requiredActions.length });
       await check("product-sidebar-is-mounted-in-reader-dock", dock.contains(shell) && dock.getAttribute("aria-label") === "ChatGPT Web");
 
       const resizer = dock.querySelector('[data-zchatgptweb-resizer]');
@@ -217,6 +219,7 @@ function runHostInspection(config) {
       await check("keyboard-resize-keeps-the-reader-accessible", actualWidth(dock).rectCss === afterDrag + 16, { before: afterDrag, after: actualWidth(dock).rectCss });
 
       const embed = await until(() => win.document.querySelector('[data-zchatgptweb-embed-browser]'), "product-official-chat-browser", 10000);
+      await check("official-page-context-is-bound-to-current-pdf", embed.getAttribute("data-zchatgptweb-context-binding") === `${attachments[0].libraryID}:${attachments[0].key}`);
       const navigationStarted = Date.now();
       while (embed.getAttribute("data-zchatgptweb-embed-state") === "idle" && Date.now() - navigationStarted < 10000) await delay(100);
       const readinessStates = new Set([
@@ -229,7 +232,7 @@ function runHostInspection(config) {
         const value = String(embed.getAttribute("data-zchatgptweb-bridge-ready") ?? "unknown");
         return readinessStates.has(value) ? value : "unknown";
       };
-      const usableReadiness = new Set(["ready", "draft"]);
+      const usableReadiness = new Set(["ready", "draft", "composer-ready"]);
       const terminalReadiness = new Set([
         "login-required", "challenge-required", "unsupported-composer", "ambiguous-composer",
         "unsupported-send", "ambiguous-send", "composer-missing", "submit-missing", "auth-navigation",
@@ -305,6 +308,14 @@ function runHostInspection(config) {
         const minimum = Math.min(320, maximum);
         const expectedClamped = Math.min(Math.max(requestedWidth, minimum), Math.max(minimum, maximum));
         const width = actualWidth(dock);
+        const currentShell = dock.querySelector('.zchatgptweb-shell');
+        const shellBounds = currentShell?.getBoundingClientRect();
+        const toolbarButtons = Array.from(currentShell?.querySelectorAll('header button') ?? []).filter(button => !button.hidden);
+        const actionsFit = Boolean(shellBounds) && toolbarButtons.length >= requiredActions.length && toolbarButtons.every(button => {
+          const bounds = button.getBoundingClientRect();
+          return bounds.width >= 24 && bounds.height >= 24 && bounds.left >= shellBounds.left - 1 && bounds.right <= shellBounds.right + 1;
+        });
+        await check(`visible-actions-fit-sidebar-width-${requestedWidth}`, actionsFit, { buttons: toolbarButtons.length });
         const afterWidthAnchor = pdfAnchor(pdfReader);
         const focusAfterResize = readerDoc.activeElement;
         const focusPreserved = focusStable(focusBeforeResize, focusAfterResize, focusBeforeResizeSummary, activeElementSummary(readerDoc));
@@ -325,6 +336,26 @@ function runHostInspection(config) {
           actualRectCss: width.rectCss, availableViewportCss: availableWidth,
           clampMatched, anchorPreserved, focusPreserved,
         });
+      }
+      // Exercise the final XPI's editor helper in Gecko with synthetic text only. This is
+      // insertion evidence, not an official send/answer acceptance check.
+      const dom = ChromeUtils.importESModule("resource://zotero-chatgpt-web-plugin/chatgpt-dom.mjs");
+      const syntheticEditor = readerDoc.createElement("div");
+      syntheticEditor.id = "prompt-textarea";
+      syntheticEditor.className = "ProseMirror";
+      syntheticEditor.setAttribute("contenteditable", "true");
+      syntheticEditor.style.cssText = "position:fixed;left:-10000px;top:0;width:400px;white-space:pre-wrap";
+      syntheticEditor.innerHTML = "<p><br></p>";
+      readerDoc.body.append(syntheticEditor);
+      const beforeEditorFocus = readerDoc.activeElement;
+      const syntheticText = "Synthetic question\n\nSelected passage\nA synthetic paragraph.\n\n[synthetic insertion receipt]";
+      try {
+        const inserted = dom.replaceChatGPTComposer(syntheticEditor, syntheticText);
+        await check("final-xpi-rich-editor-multiline-insertion-in-gecko", inserted && dom.sameRenderedText(dom.readChatGPTComposer(syntheticEditor), syntheticText));
+        await check("rendered-text-verification-preserves-word-spacing", !dom.sameRenderedText("a b", "ab"));
+      } finally {
+        syntheticEditor.remove();
+        if (beforeEditorFocus?.isConnected) beforeEditorFocus.focus();
       }
       report.status = report.page.status === "PASS" ? "PASS" : "BLOCKED";
       report.reader.mainViewport = { width: win.innerWidth, height: win.innerHeight };

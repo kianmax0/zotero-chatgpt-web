@@ -5,7 +5,7 @@ const EDITOR_SELECTORS = [
   '.ProseMirror[contenteditable="true"]',
 ];
 const EDITABLE_SELECTOR = 'textarea, [contenteditable="true"]';
-const SEND_SELECTOR = 'button[data-testid="send-button"], button[aria-label="Send prompt"]';
+const SEND_SELECTOR = 'button[data-testid="send-button"], button[aria-label="Send prompt"], button[aria-label="Send message"]';
 const USER_MESSAGE_SELECTOR = '[data-message-author-role="user"]';
 
 function unique(elements) {
@@ -111,6 +111,24 @@ export function readChatGPTComposer(composer) {
   return String(composer?.innerText ?? composer?.textContent ?? '');
 }
 
+/** Compare contenteditable text after canonicalizing browser paragraph linebreaks. */
+export function sameRenderedText(left, right) {
+  // innerText may report two, three, or more newlines for one paragraph boundary. Treat newline
+  // runs as one boundary while preserving every ordinary space and all non-whitespace characters.
+  const normalize = value => String(value).replace(/\r\n?/gu, '\n').replace(/\n+/gu, '\n');
+  return normalize(left) === normalize(right);
+}
+
+/** Compare the logical draft without treating textarea blank lines as rich paragraph markup. */
+export function composerTextMatches(composer, expected) {
+  const actual = readChatGPTComposer(composer);
+  if (String(composer?.localName || '').toLowerCase() === 'textarea') {
+    const normalizeLineEndings = value => String(value).replace(/\r\n?/gu, '\n');
+    return normalizeLineEndings(actual) === normalizeLineEndings(expected);
+  }
+  return sameRenderedText(actual, expected);
+}
+
 /** Replace the single recognized editor through the page's normal input/editing event path. */
 export function replaceChatGPTComposer(composer, text) {
   if (!composer || typeof text !== 'string') return false;
@@ -124,7 +142,7 @@ export function replaceChatGPTComposer(composer, text) {
     const EventCtor = view?.InputEvent ?? view?.Event;
     if (!EventCtor) return false;
     composer.dispatchEvent(new EventCtor('input', { bubbles: true, composed: true, inputType: 'insertText', data: text }));
-    return true;
+    return composerTextMatches(composer, text);
   }
   if (!supportedEditor(composer) || !document || !view?.getSelection || !document.execCommand) return false;
   const selection = view.getSelection();
@@ -151,7 +169,7 @@ export function replaceChatGPTComposer(composer, text) {
     selection.addRange(range);
     const changed = document.execCommand('insertText', false, text) === true;
     if (!changed) restore();
-    return changed && readChatGPTComposer(composer).includes(text);
+    return changed && composerTextMatches(composer, text);
   } catch {
     restore();
     return false;

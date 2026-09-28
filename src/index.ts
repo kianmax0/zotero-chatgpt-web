@@ -30,6 +30,7 @@ interface Session {
   stagedCitation: Citation | null;
   pendingDirect: { question: string; citation: Citation; automatic: boolean } | null;
   lastStatus: string;
+  reload: () => void;
 }
 
 interface ReaderEntry { pane: NativeReaderPane; buttons: Set<HTMLButtonElement>; selection: SelectionActionBar; usedSelections: Set<string> }
@@ -57,7 +58,7 @@ function report(session: Session, status: string, reason?: string): void {
   const shell = session.shell;
   if (!shell) return;
   const previous = session.lastStatus;
-  const retry = { label: 'Reload page', run: () => session.surface.reload() };
+  const retry = { label: 'Reload page', run: session.reload };
   const notice = (message: string, error = false, action?: typeof retry) => shell.status(message, error ? 'error' : 'info', action);
   session.lastStatus = status;
   switch (status) {
@@ -100,7 +101,13 @@ function sessionFor(reader: HostReader, identity: AttachmentIdentity): Session {
     idle[1].surface.destroy(); pool.delete(idle[0]);
   }
   const surface = createChatEmbedSurface(win);
-  const session: Session = { identity: { ...identity }, surface, shell: null, latestCitation: null, stagedCitation: null, pendingDirect: null, lastStatus: '' };
+  const session: Session = {
+    identity: { ...identity }, surface, shell: null, latestCitation: null,
+    stagedCitation: null, pendingDirect: null, lastStatus: '',
+    reload: () => {
+      if (win.confirm('Reload the official ChatGPT page? An unsent draft may be lost.')) surface.reload();
+    },
+  };
   pool.set(binding, session);
   return session;
 }
@@ -174,12 +181,10 @@ function readerEntry(reader: HostReader): ReaderEntry {
     let session: Session;
     try { session = sessionFor(reader, identity); }
     catch (error) { body.textContent = error instanceof Error ? error.message : 'ChatGPT is unavailable.'; return; }
-    const metadata = metadataForAttachment(Zotero, identity);
     const binding = attachmentBinding(identity);
     const shell = mountShell(body, {
-      title: metadata?.title ?? identity.attachmentTitle, attachmentTitle: identity.attachmentTitle,
       onClose: close,
-      onReload: () => { if (reader._window.confirm('Reload the official ChatGPT page? An unsent draft may be lost.')) session.surface.reload(); },
+      onReload: session.reload,
       onCopyDetails: () => {
         const details = metadataForAttachment(Zotero, identity);
         if (!details || !copyText(bibliographyText(details))) shell.status('Paper details could not be copied.', 'error');
@@ -207,8 +212,6 @@ function readerEntry(reader: HostReader): ReaderEntry {
         if (!url) shell.status('Open an official ChatGPT conversation before binding it.', 'error');
         else { settings?.rememberConversation(binding, url); shell.status('Conversation linked to this PDF.'); }
       },
-      onMenuOpen: () => session.surface.hide(),
-      onMenuClose: () => { if (session.shell === shell && pane.selected()) session.surface.show(shell.anchor, reader._iframe ?? null); },
     });
     session.shell = shell;
     session.surface.bindContext(binding, question => prepareContext(reader, session, question));
@@ -236,14 +239,14 @@ function readerEntry(reader: HostReader): ReaderEntry {
 }
 
 function showError(session: Session, error: unknown): void {
-  session.shell?.status(error instanceof Error ? error.message : 'The action failed. Try again.', 'error', { label: 'Reload page', run: () => session.surface.reload() });
+  session.shell?.status(error instanceof Error ? error.message : 'The action failed. Try again.', 'error', { label: 'Reload page', run: session.reload });
   if (!(error instanceof ReaderError)) Zotero.logError(error);
 }
 
 function showErrorForReader(reader: HostReader, citation: Citation, error: unknown): void {
   const session = sessions.get(reader._window)?.get(attachmentBinding(citation.attachment));
   const message = `${error instanceof Error ? error.message : 'The ChatGPT action failed.'} Select the passage again to retry.`;
-  if (session) session.shell?.status(message, 'error', { label: 'Reload page', run: () => session.surface.reload() });
+  if (session) session.shell?.status(message, 'error', { label: 'Reload page', run: session.reload });
   else reader._window.alert(message);
   if (!(error instanceof ReaderError)) Zotero.logError(error);
 }

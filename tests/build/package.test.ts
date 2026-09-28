@@ -15,7 +15,7 @@ const fixtureFiles: Record<string, string> = {
   "manifest.json": JSON.stringify({
     manifest_version: 2,
     name: "Zotero ChatGPT Web",
-    version: "0.1.0",
+    version: "0.2.0",
     applications: { zotero: { id: productId, strict_min_version: "9.0.6", strict_max_version: "9.0.*", update_url: updateURL } },
   }),
   "content/zotero-chatgpt-web.js": "(() => {})();\n",
@@ -45,6 +45,19 @@ describe("XPI packaging", () => {
   });
 
   afterEach(async () => rm(temporaryRoot, { recursive: true, force: true }));
+
+  it("derives the default artifact path from the repository manifest version", async () => {
+    await writeFile(path.join(temporaryRoot, "manifest.json"), JSON.stringify({ version: "0.2.0" }));
+    const currentRelease = path.join(temporaryRoot, "dist", "zotero-chatgpt-web-0.2.0.xpi");
+    await packageExtension(source, currentRelease);
+    await writeFile(path.join(temporaryRoot, "dist", "zotero-chatgpt-web-0.1.0.xpi"), "stale release");
+
+    const verifierPath = fileURLToPath(new URL("../../scripts/verify-artifacts.mjs", import.meta.url));
+    const verifier = await import(verifierPath) as { resolveDefaultXpiPath: (root: string) => Promise<string> };
+    const selectedDefault = await verifier.resolveDefaultXpiPath(temporaryRoot);
+    expect(selectedDefault).toBe(currentRelease);
+    expect((await verifyXpi(selectedDefault)).manifest.version).toBe("0.2.0");
+  });
 
   it("creates a deterministic, checksum-verified XPI from allowlisted files", async () => {
     const first = await packageExtension(source, output);

@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
   submitResolution: null as null | ((result: { status: string }) => void),
   surface: null as null | Record<string, ReturnType<typeof vi.fn>>,
   preferences: new Map<string, unknown>(),
+  shellStatus: null as null | ReturnType<typeof vi.fn>,
 }));
 
 vi.mock('../../src/context/metadata.ts', () => ({
@@ -62,7 +63,7 @@ vi.mock('../../src/host/toolbar.ts', () => ({
   insertToolbarButton: vi.fn(),
 }));
 vi.mock('../../src/ui/shell.ts', () => ({
-  mountShell: () => ({ anchor: {} as HTMLElement, status: vi.fn(), setIdentity: vi.fn(), dispose: vi.fn() }),
+  mountShell: () => ({ anchor: {} as HTMLElement, status: state.shellStatus = vi.fn(), dispose: vi.fn() }),
 }));
 vi.mock('../../src/web/actor.ts', () => ({
   OFFICIAL_CHAT_RESOURCE_ROOT: 'resource://zotero-chatgpt-web/',
@@ -127,6 +128,7 @@ beforeEach(() => {
   state.preferences.clear();
   state.citation = citation();
   state.submitResolution = null;
+  state.shellStatus = null;
   state.surface = {
     bindContext: vi.fn(), bindConversation: vi.fn(), onStatus: vi.fn(), show: vi.fn(), hide: vi.fn(),
     readiness: vi.fn(() => 'ready'), stage: vi.fn(() => Promise.resolve({ status: 'staged' })),
@@ -198,5 +200,21 @@ describe('Reader selection handoff to the official ChatGPT page', () => {
     state.submitResolution?.({ status: 'accepted' });
     state.selectionHandlers!.explain(state.citation!);
     expect(state.surface!.submitQuestion).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps an unsent draft when reload recovery is cancelled', async () => {
+    const reader = startAndCapture();
+    const confirmReload = vi.fn(() => false);
+    reader._window.confirm = confirmReload;
+    state.selectionHandlers!.ask(state.citation!);
+    await vi.waitFor(() => expect(state.surface!.stage).toHaveBeenCalledTimes(1));
+    const reportStatus = state.surface!.onStatus!.mock.calls[0]?.[0] as (status: string) => void;
+    reportStatus('unsupported-send');
+    const recovery = state.shellStatus!.mock.calls.at(-1)?.[2] as { run(): void };
+    recovery.run();
+
+    expect(confirmReload).toHaveBeenCalledTimes(1);
+    expect(state.surface!.reload).not.toHaveBeenCalled();
+    expect(state.surface!.submitQuestion).not.toHaveBeenCalled();
   });
 });
