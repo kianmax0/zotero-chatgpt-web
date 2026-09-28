@@ -1,0 +1,190 @@
+{
+  "schemaVersion": 1,
+  "sourceCommit": "368de968e2b175ef9a49cfabcb76b08a872daa26",
+  "artifact": {
+    "filename": "zotero-chatgpt-web-0.3.0.xpi",
+    "sha256": "0567362caa599da3154ace37ff4c85d75f82ab8268ead8d865ae5ac75672a3a4",
+    "allowlistedFiles": 9
+  },
+  "environment": {
+    "os": "macOS 26.6.2",
+    "architecture": "arm64",
+    "zotero": "9.0.6",
+    "node": "24.11.0",
+    "npm": "11.6.1"
+  },
+  "localGates": {
+    "typecheck": "PASS",
+    "lint": "PASS",
+    "unitTests": {
+      "status": "PASS",
+      "vitest": 32,
+      "actors": 36,
+      "skipped": 0
+    },
+    "package": "PASS",
+    "artifactVerification": "PASS"
+  },
+  "cleanCheckout": {
+    "status": "PASS",
+    "byteIdentical": true
+  },
+  "crossPlatformCI": {
+    "status": "PASS",
+    "runId": 36367809139,
+    "url": "https://github.com/kianmax0/zotero-chatgpt-web/actions/runs/36367809139",
+    "platforms": {
+      "ubuntu-latest": "PASS",
+      "windows-latest": "PASS",
+      "macos-latest": "PASS"
+    },
+    "identicalPackages": "PASS",
+    "downloadedArtifactsMatchFinalXpi": true
+  },
+  "reader": {
+    "status": "PASS",
+    "runId": "release-v030-0928",
+    "product": {
+      "addonId": "{c0f56f65-4363-4713-8f48-6bd18593c781}",
+      "version": "0.3.0",
+      "sha256": "0567362caa599da3154ace37ff4c85d75f82ab8268ead8d865ae5ac75672a3a4"
+    },
+    "driverSourceSha256": "ee85b9b2e386d98ac569b4f4dfb23b206281024b221133bf86de697930cbd439",
+    "checks": [
+      {
+        "name": "dedicated-profile-and-data-binding",
+        "status": "PASS"
+      },
+      {
+        "name": "final-product-xpi-is-active-and-hash-bound",
+        "status": "PASS"
+      },
+      {
+        "name": "two-synthetic-pdfs-share-one-parent",
+        "status": "PASS"
+      },
+      {
+        "name": "reader-opens-first-attachment-from-synthetic-parent",
+        "status": "PASS"
+      },
+      {
+        "name": "opening-sidebar-does-not-steal-reader-focus",
+        "status": "PASS"
+      },
+      {
+        "name": "sidebar-omits-redundant-paper-and-pdf-headings",
+        "status": "PASS"
+      },
+      {
+        "name": "reader-toolbar-is-one-row-of-icon-only-actions",
+        "status": "PASS"
+      },
+      {
+        "name": "reader-toolbar-colors-are-grayscale",
+        "status": "PASS"
+      },
+      {
+        "name": "reader-status-colors-are-grayscale",
+        "status": "PASS"
+      },
+      {
+        "name": "reader-status-recovery-action-is-icon-only",
+        "status": "PASS"
+      },
+      {
+        "name": "product-sidebar-is-mounted-in-reader-dock",
+        "status": "PASS"
+      },
+      {
+        "name": "resize-handle-has-a-visible-hit-area",
+        "status": "PASS"
+      },
+      {
+        "name": "pointer-resize-changes-and-persists-sidebar-width",
+        "status": "PASS"
+      },
+      {
+        "name": "keyboard-resize-keeps-the-reader-accessible",
+        "status": "PASS"
+      },
+      {
+        "name": "official-page-context-is-bound-to-current-pdf",
+        "status": "PASS"
+      },
+      {
+        "name": "official-page-actor-readiness",
+        "status": "BLOCKED"
+      },
+      {
+        "name": "opening-sidebar-preserves-pdf-page-anchor",
+        "status": "PASS"
+      },
+      {
+        "name": "visible-actions-fit-sidebar-width-360",
+        "status": "PASS"
+      },
+      {
+        "name": "sidebar-width-360-sample-clamps-and-preserves-anchor-focus",
+        "status": "PASS"
+      },
+      {
+        "name": "visible-actions-fit-sidebar-width-480",
+        "status": "PASS"
+      },
+      {
+        "name": "sidebar-width-480-sample-clamps-and-preserves-anchor-focus",
+        "status": "PASS"
+      },
+      {
+        "name": "visible-actions-fit-sidebar-width-720",
+        "status": "PASS"
+      },
+      {
+        "name": "sidebar-width-720-sample-clamps-and-preserves-anchor-focus",
+        "status": "PASS"
+      },
+      {
+        "name": "final-xpi-rich-editor-multiline-insertion-in-gecko",
+        "status": "PASS"
+      },
+      {
+        "name": "rendered-text-verification-preserves-word-spacing",
+        "status": "PASS"
+      },
+      {
+        "name": "final-xpi-id-only-send-control-in-native-dom",
+        "status": "PASS"
+      },
+      {
+        "name": "final-xpi-ambiguous-send-controls-remain-blocked",
+        "status": "PASS"
+      },
+      {
+        "name": "final-xpi-missing-send-control-remains-blocked",
+        "status": "PASS"
+      }
+    ],
+    "page": {
+      "status": "BLOCKED",
+      "embedState": "loaded",
+      "actorReadiness": "challenge-required",
+      "actorWaitMs": 3797,
+      "origin": "https://chatgpt.com",
+      "notice": "challenge-required"
+    },
+    "nativeDarkMode": "NOT RUN",
+    "trustedMouseCapture": "NOT RUN",
+    "windows": "NOT RUN",
+    "linux": "NOT RUN"
+  },
+  "officialAnswer": {
+    "status": "BLOCKED",
+    "reason": "challenge-required in the fresh isolated official page. No authentication or question was automated.",
+    "screenshotExactDom": "NOT VERIFIED"
+  },
+  "release": {
+    "channel": "prerelease",
+    "stableGate": "BLOCKED",
+    "updateFeed": "empty"
+  }
+}
