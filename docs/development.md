@@ -1,24 +1,8 @@
 # Development
 
-## Source map
+## Requirements
 
-```text
-src/index.ts             Reader lifecycle, selection actions, official page wiring
-src/host/               Zotero Reader dock, toolbar, geometry, clipboard
-src/context/            Attachment metadata, frozen selection, PDF version
-src/web/                Official browser surface, prompt, actor registration, URL binding
-actors/                 Narrow ChatGPT page actor and DOM recognition
-src/ui/ + assets/       Reader shell and responsive styling
-src/settings/           Preference owner and Zotero settings pane
-tests/                  Context, Reader routing, actor, packaging, host-prep regressions
-scripts/                Build, deterministic XPI, audit, isolated host preparation
-```
-
-The request path is `renderTextSelectionPopup` → `captureSelection` / `freezeSelectionVersion` → `selectionAction` in `src/index.ts` → `ChatEmbedSurface` → `ChatGPTWebChild` → the **visible official composer**. A manual send starts in the content actor and calls back to `prepareContext` in `src/index.ts`. The actor has no Zotero write capability. `SettingsStore` is the preference owner; each attachment key is part of its binding.
-
-## Commands
-
-Use Node 24 and npm 11.6.1:
+Node 24 and npm 11.6.1.
 
 ```sh
 npm ci
@@ -29,16 +13,18 @@ npm run package:dev
 npm run verify:artifacts
 ```
 
-`package:dev` produces `dist/zotero-chatgpt-web-<manifest-version>.xpi` and `dist/SHA256SUMS`. `verify:artifacts` checks the exact file allowlist, add-on identity, checksum, forbidden names, and Node imports. CI runs the same checks. Node is only a build dependency; the XPI has no Node runtime or Codex binary.
+The build creates `dist/zotero-chatgpt-web-<version>.xpi` and `dist/SHA256SUMS`. The XPI contains browser-targeted JavaScript and no platform-specific binary, so one package serves Windows, macOS, and Linux. CI runs the same gates on all three operating systems.
 
-For a fresh host profile after packaging:
+## Host checks
+
+Prepare an isolated test profile with a synthetic PDF:
 
 ```sh
-npm run host:prepare -- --xpi dist/zotero-chatgpt-web-0.1.0.xpi --run-id <new-run-name>
+npm run host:prepare -- --xpi dist/zotero-chatgpt-web-0.1.0.xpi --run-id <unique-name>
 ```
 
-The command validates the XPI, then creates `.zotero-chatgpt-web-test/<run-name>/` with dedicated `profile`, `data`, and randomly generated synthetic PDFs. It refuses an existing run. Use only the printed `-no-remote -profile … -datadir …` command; import those synthetic PDFs into that profile. Never point the test at a daily Zotero profile or real literature library.
+Use only the generated `.zotero-chatgpt-web-test/<name>/` profile and PDF. Never use a daily profile or real library.
 
-## Publication gate
+## First stable release
 
-Build the final XPI from a clean checkout. Before a stable GitHub Release, record the commit, manifest version, XPI SHA-256, Zotero/macOS environment, local gates, and final-XPI Reader checks in [validation.md](validation.md). A synthetic PDF passage must contain a fresh random value that is omitted from the question itself; **More details** must deliver that passage to the same official conversation, and a visible answer must use the value. Record frozen selection, page acceptance, and actual answer separately. Browser challenges, login, or an unsupported editor are `BLOCKED` or `FAIL`, never a substituted pass. Do not tag or publish a stable XPI without this gate.
+Before publishing, build from a clean checkout and complete the Reader acceptance test in [validation.md](validation.md): send a fresh random value from a synthetic PDF passage through the official ChatGPT page and confirm the visible answer uses it. Record the commit, XPI SHA-256, OS, Zotero version, and results. CI success alone does not verify Zotero Reader behavior on each OS.

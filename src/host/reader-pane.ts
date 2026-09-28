@@ -258,10 +258,18 @@ export class NativeReaderPane implements LayoutHost {
       },
       measureAvailableWidth: () => this.measureAvailableWidth(),
     }) : undefined;
-    const startDrag = () => { this.draggingWidth = true; };
-    const endDrag = () => { this.draggingWidth = false; this.lastWidth = this.currentWidth(); };
+    let resizingPointer: number | undefined;
+    const startDrag = (event: PointerEvent) => {
+      if (event.button !== 0 || event.isPrimary === false) return;
+      this.draggingWidth = true; resizingPointer = event.pointerId;
+    };
+    const endDrag = (event: PointerEvent) => {
+      if (event.pointerId !== resizingPointer) return;
+      this.draggingWidth = false; resizingPointer = undefined; this.lastWidth = this.currentWidth();
+    };
     resizer?.addEventListener('pointerdown', startDrag);
     readerDoc?.addEventListener('pointerup', endDrag);
+    readerDoc?.addEventListener('pointercancel', endDrag);
     this.lastAvailable = this.measureAvailableWidth();
     this.lastWidth = this.currentWidth();
     this.disconnectLayout = () => {
@@ -271,6 +279,7 @@ export class NativeReaderPane implements LayoutHost {
       unbindResize?.();
       resizer?.removeEventListener('pointerdown', startDrag);
       readerDoc?.removeEventListener('pointerup', endDrag);
+      readerDoc?.removeEventListener('pointercancel', endDrag);
       if (this.layoutTimer !== undefined) win.clearTimeout(this.layoutTimer);
       this.layoutTimer = undefined;
     };

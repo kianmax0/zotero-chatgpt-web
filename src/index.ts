@@ -63,27 +63,27 @@ function report(session: Session, status: string, reason?: string): void {
   switch (status) {
     case 'ready': case 'composer-ready':
       if (settings && !settings.disclosureSeen()) notice(settings.automaticBibliography()
-        ? 'Before your first send: available paper details and the stored abstract will go to official ChatGPT. PDF body text stays local unless you select a passage. Opening this sidebar sends nothing.'
-        : 'Automatic paper details are off. Only text you explicitly put in the official composer will be sent. Opening this sidebar sends nothing.');
+        ? 'Sends include paper details and abstract. PDF text is included only when selected.'
+        : 'Automatic paper context is off. Only your draft and selected text are sent.');
       else if (!['accepted', 'accepted-without-context', 'staged'].includes(previous)) shell.status('');
       return;
     case 'draft':
-      if (session.stagedCitation) notice('Selected passage is in the official draft. Edit it there; it has not been sent.');
+      if (session.stagedCitation) notice('Selection added to draft. Not sent.');
       return;
-    case 'loading': case 'checking': notice('Loading the official ChatGPT page…', false, retry); return;
-    case 'login-required': notice('Sign in on the official ChatGPT page, then retry the action.', true, retry); return;
-    case 'challenge-required': notice('Complete the official page’s browser verification, then reload if needed.', true, retry); return;
-    case 'unsupported-composer': case 'ambiguous-composer': notice('The ChatGPT editor could not be identified safely. Your draft was kept.', true, retry); return;
-    case 'unsupported-send': case 'ambiguous-send': case 'submit-missing': notice('The ChatGPT send control is unclear. Your draft was kept and was not sent.', true, retry); return;
-    case 'composer-missing': notice('The ChatGPT editor is not ready. Sign in or wait for the page, then retry.', true, retry); return;
-    case 'preparing': notice('Preparing frozen paper context locally. Nothing has been sent yet.'); return;
-    case 'staged': notice('Selection inserted in the official draft. It has not been sent.'); return;
+    case 'loading': case 'checking': notice('Loading ChatGPT…', false, retry); return;
+    case 'login-required': notice('Sign in to ChatGPT.', true, retry); return;
+    case 'challenge-required': notice('Complete ChatGPT’s browser verification.', true, retry); return;
+    case 'unsupported-composer': case 'ambiguous-composer': notice('Editor unavailable. Draft kept.', true, retry); return;
+    case 'unsupported-send': case 'ambiguous-send': case 'submit-missing': notice('Send unavailable. Draft kept; not sent.', true, retry); return;
+    case 'composer-missing': notice('Waiting for ChatGPT’s editor.', false, retry); return;
+    case 'preparing': notice('Preparing paper context…'); return;
+    case 'staged': notice('Selection added to draft. Not sent.'); return;
     case 'accepted': case 'accepted-without-context':
       settings?.markDisclosureSeen(); session.stagedCitation = null;
-      notice('ChatGPT accepted this message. Read its answer on the official page.'); return;
-    case 'not-accepted': notice('The page did not confirm submission. Check the official chat before trying again; the plugin will not resend automatically.', true); return;
-    case 'context-blocked': notice(reason === 'draft-changed' ? 'The draft changed while context was prepared. Review it and send again.' : 'Paper context could not be verified. The draft was kept and was not sent.', true); return;
-    default: if (reason) notice(`ChatGPT action stopped: ${reason}. Review the draft and retry.`, true, retry);
+      shell.status(''); return;
+    case 'not-accepted': notice('Send unconfirmed. Check the chat before retrying.', true); return;
+    case 'context-blocked': notice(reason === 'draft-changed' ? 'Draft changed. Review before sending.' : 'Context unavailable. Draft kept; not sent.', true); return;
+    default: if (reason) notice(`Action stopped: ${reason}. Draft kept.`, true, retry);
   }
 }
 
@@ -183,13 +183,13 @@ function readerEntry(reader: HostReader): ReaderEntry {
       onCopyDetails: () => {
         const details = metadataForAttachment(Zotero, identity);
         if (!details || !copyText(bibliographyText(details))) shell.status('Paper details could not be copied.', 'error');
-        else shell.status('Paper details copied locally. Paste them into ChatGPT if you want to share them.');
+        else shell.status('Paper details copied.');
       },
       onCopyPdf: () => { void (async () => {
         const item = Zotero.Items.getByLibraryAndKey?.(identity.libraryId, identity.attachmentKey);
         const path = item ? await item.getFilePathAsync?.() : false;
         const copied = Boolean(path && copyPdfFile(path));
-        shell.status(copied ? 'PDF copied. Paste it into ChatGPT to attach it; no upload has happened yet.' : 'The PDF could not be copied.', copied ? 'info' : 'error');
+        shell.status(copied ? 'PDF copied. Paste into ChatGPT to attach.' : 'PDF copy failed.', copied ? 'info' : 'error');
       })().catch(() => shell.status('The PDF could not be copied.', 'error')); },
       onReturnToSource: () => { const citation = session.latestCitation; if (citation) void openCitation(Zotero, citation).catch(error => showError(session, error)); else shell.status('Select a passage first.', 'info'); },
       onSettings: () => {
@@ -199,13 +199,13 @@ function readerEntry(reader: HostReader): ReaderEntry {
         } catch { shell.status('Open Zotero Settings → Zotero ChatGPT Web to change automatic context.', 'error'); }
       },
       onNewChat: () => { void session.surface.newChat().then(started => {
-        if (started) { settings?.forgetConversation(binding); shell.status('New official ChatGPT chat opened.'); }
+        if (started) { settings?.forgetConversation(binding); shell.status(''); }
         else shell.status('Finish or clear the current draft before starting a new chat.', 'error');
       }).catch(() => shell.status('A new chat could not be opened. Review the current draft and retry.', 'error')); },
       onBindConversation: () => {
         const url = canonicalOfficialConversationURL(session.surface.snapshot().url);
         if (!url) shell.status('Open an official ChatGPT conversation before binding it.', 'error');
-        else { settings?.rememberConversation(binding, url); shell.status('This official conversation is bound to the current PDF.'); }
+        else { settings?.rememberConversation(binding, url); shell.status('Conversation linked to this PDF.'); }
       },
       onMenuOpen: () => session.surface.hide(),
       onMenuClose: () => { if (session.shell === shell && pane.selected()) session.surface.show(shell.anchor, reader._iframe ?? null); },

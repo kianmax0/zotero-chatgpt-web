@@ -340,6 +340,83 @@ test('unknown submit controls are blocked without changing the user draft', asyn
   assert.ok(signals.some(signal => signal.status === 'unsupported-send'));
 });
 
+test('composer tools remain clickable when a draft exists and the send control is missing', async () => {
+  globalThis.JSWindowActorChild = class {};
+  const { ZoteroChatGPTWebOfficialChatChild } = await import('../../actors/ChatGPTWebChild.mjs');
+  const editor = { localName: 'textarea', id: 'prompt-textarea', value: 'Keep this draft', type: 'text', getAttribute: () => null };
+  const form = { contains: () => true, querySelectorAll: () => [], querySelector: () => null };
+  editor.closest = selector => selector === 'form' ? form : null;
+  const actor = new ZoteroChatGPTWebOfficialChatChild();
+  actor.document = fixture({ editors: [editor] });
+  actor.sendAsyncMessage = () => {};
+  let routed = 0;
+  actor.submitQuestion = () => { routed += 1; };
+  for (const label of ['Add files and more', 'Select ChatGPT model', 'Dictate', 'Start Voice', 'New composer tool']) {
+    const tool = { localName: 'button', type: 'button', matches: () => false,
+      getAttribute: name => name === 'aria-label' ? label : null,
+      closest(selector) { return selector === 'button' ? this : selector === 'form' ? form : null; } };
+    const event = { type: 'click', isTrusted: true, target: tool, prevented: false,
+      preventDefault() { this.prevented = true; }, stopImmediatePropagation() {} };
+    actor.handleEvent(event);
+    assert.equal(event.prevented, false, `${label} should remain usable`);
+  }
+  assert.equal(routed, 0);
+  assert.equal(editor.value, 'Keep this draft');
+});
+
+test('an unsupported editor does not block unrelated navigation controls', async () => {
+  globalThis.JSWindowActorChild = class {};
+  const { ZoteroChatGPTWebOfficialChatChild } = await import('../../actors/ChatGPTWebChild.mjs');
+  const editor = { localName: 'div', textContent: 'Keep this draft', getAttribute: name => name === 'contenteditable' ? 'true' : null };
+  const actor = new ZoteroChatGPTWebOfficialChatChild();
+  actor.document = fixture({ editors: [editor] });
+  actor.sendAsyncMessage = () => {};
+  const navigation = { localName: 'button', type: 'button', matches: () => false,
+    getAttribute: () => null, closest(selector) { return selector === 'button' ? this : null; } };
+  const event = { type: 'click', isTrusted: true, target: navigation, prevented: false,
+    preventDefault() { this.prevented = true; }, stopImmediatePropagation() {} };
+  actor.handleEvent(event);
+  assert.equal(event.prevented, false);
+  assert.equal(editor.textContent, 'Keep this draft');
+});
+
+test('an empty recognized composer is ready even before its conditional send button appears', async () => {
+  globalThis.JSWindowActorChild = class {};
+  const { ZoteroChatGPTWebOfficialChatChild } = await import('../../actors/ChatGPTWebChild.mjs');
+  const editor = { localName: 'textarea', id: 'prompt-textarea', value: '', type: 'text', getAttribute: () => null,
+    closest: () => ({ contains: () => true, querySelectorAll: () => [], querySelector: () => null }) };
+  const actor = new ZoteroChatGPTWebOfficialChatChild();
+  actor.document = fixture({ editors: [editor] });
+  assert.equal(actor.probe().status, 'composer-ready');
+});
+
+test('a direct selected-passage send waits for the button that appears after composer input', async () => {
+  globalThis.JSWindowActorChild = class {};
+  const { ZoteroChatGPTWebOfficialChatChild } = await import('../../actors/ChatGPTWebChild.mjs');
+  const view = { top: null, setTimeout, crypto: { randomUUID: () => 'conditional-send' }, InputEvent: class {} };
+  view.top = view;
+  let clicks = 0;
+  const userMessages = [];
+  const send = { localName: 'button', disabled: false, click() { clicks += 1; userMessages.push({ textContent: editor.value }); } };
+  const form = { contains: () => true, querySelectorAll: () => editor.value ? [send] : [], querySelector: () => null };
+  const editor = { localName: 'textarea', id: 'prompt-textarea', type: 'text', value: '', getAttribute: () => null,
+    closest: selector => selector === 'form' ? form : null, dispatchEvent() {} };
+  const document = fixture({ editors: [editor] });
+  document.defaultView = view;
+  const originalQuery = document.querySelectorAll;
+  document.querySelectorAll = selector => selector === '[data-message-author-role="user"]' ? userMessages : originalQuery(selector);
+  editor.ownerDocument = document;
+  const actor = new ZoteroChatGPTWebOfficialChatChild();
+  actor.document = document;
+  actor.contentWindow = view;
+  actor.sendAsyncMessage = () => {};
+  actor.sendQuery = async (_name, data) => ({ status: 'prepared', marker: data.transaction, hasAutomaticContext: true,
+    text: `Explain the frozen selected passage.\n\n[Zotero ChatGPT Web request ${data.transaction}]` });
+  const result = await actor.receiveMessage({ name: 'submitQuestion', data: { question: 'Explain the frozen selected passage.' } });
+  assert.equal(result.status, 'accepted');
+  assert.equal(clicks, 1);
+});
+
 test('unmarked top-level ChatGPT pages receive no event interception or actor commands', async () => {
   globalThis.JSWindowActorChild = class {};
   const { ZoteroChatGPTWebOfficialChatChild } = await import('../../actors/ChatGPTWebChild.mjs');

@@ -28,6 +28,7 @@ function runHostInspection(config) {
     throw new Error(`Timed out at ${label}`);
   };
   const check = async (name, ok, details = {}) => {
+    step = name;
     report.checks.push({ name, status: ok ? "PASS" : "FAIL", details });
     await save();
     if (!ok) throw new Error(`Check failed: ${name}`);
@@ -70,9 +71,9 @@ function runHostInspection(config) {
   };
   const samePdfAnchor = (before, after) => before.page === after.page
     && before.anchor.page === after.anchor.page
-    && before.anchor.left !== null && after.anchor.left !== null
     && before.anchor.top !== null && after.anchor.top !== null
-    && Math.abs(before.anchor.left - after.anchor.left) <= 2
+    // Negative horizontal offsets are pdf.js centering margins, which change with page-width zoom.
+    && (before.anchor.left < 0 || after.anchor.left < 0 || Math.abs(before.anchor.left - after.anchor.left) <= 2)
     && Math.abs(before.anchor.top - after.anchor.top) <= 2;
   const actualWidth = dock => {
     const rectWidth = dock?.getBoundingClientRect?.().width ?? 0;
@@ -154,6 +155,8 @@ function runHostInspection(config) {
       await until(() => Zotero.Reader._readers.length === 0, "empty-dedicated-reader");
       const opened = await Zotero.Reader.open(attachments[0].id);
       const reader = () => Zotero.Reader.getByTabID(opened?.tabID);
+      await until(() => win.Zotero_Tabs.selectedID === opened?.tabID, "synthetic-reader-tab-selected");
+      report.reader.selectedTabMatches = win.Zotero_Tabs.selectedID === opened?.tabID;
       const readerDocument = () => reader()?._iframeWindow?.document;
       const readerDoc = await until(() => readerDocument(), "reader-document");
       const pdfReader = await until(() => reader(), "reader-api");
@@ -176,7 +179,7 @@ function runHostInspection(config) {
       const focusBeforeOpen = readerDoc.activeElement;
       report.reader.focusBeforeOpen = activeElementSummary(readerDoc);
       toggle.click();
-      const dock = await until(() => readerDoc.querySelector('[data-zchatgptweb-dock]'), "product-reader-dock");
+      let dock = await until(() => readerDoc.querySelector('[data-zchatgptweb-dock]'), "product-reader-dock");
       const shell = await until(() => dock.querySelector('.zchatgptweb-shell'), "product-reader-shell");
       await delay(250);
       report.reader.focusAfterOpen = activeElementSummary(readerDoc);
@@ -192,6 +195,26 @@ function runHostInspection(config) {
       const identityBound = paperLabel === expectedPaper && pdfLabel === expectedPdf;
       await check("product-shell-identifies-current-paper-and-pdf", identityBound, { paperMatches: paperLabel === expectedPaper, pdfMatches: pdfLabel === expectedPdf });
       await check("product-sidebar-is-mounted-in-reader-dock", dock.contains(shell) && dock.getAttribute("aria-label") === "ChatGPT Web");
+
+      const resizer = dock.querySelector('[data-zchatgptweb-resizer]');
+      const handleRect = box(resizer);
+      const handleStyle = readerDoc.defaultView.getComputedStyle(resizer);
+      await check("resize-handle-has-a-visible-hit-area", handleRect?.width >= 6 && handleRect?.height > 100
+        && handleStyle.cursor === "col-resize" && handleStyle.touchAction === "none", { rect: handleRect, cursor: handleStyle.cursor });
+      const beforeDrag = actualWidth(dock).rectCss;
+      const beforeDragAnchor = pdfAnchor(pdfReader);
+      resizer.dispatchEvent(new readerDoc.defaultView.PointerEvent("pointerdown", { bubbles: true, button: 0, isPrimary: true, pointerId: 71, clientX: handleRect.x + 4 }));
+      readerDoc.dispatchEvent(new readerDoc.defaultView.PointerEvent("pointermove", { bubbles: true, button: 0, isPrimary: true, pointerId: 71, clientX: handleRect.x - 76 }));
+      readerDoc.dispatchEvent(new readerDoc.defaultView.PointerEvent("pointerup", { bubbles: true, button: 0, isPrimary: true, pointerId: 71, clientX: handleRect.x - 76 }));
+      await delay(350);
+      const afterDrag = actualWidth(dock).rectCss;
+      await check("pointer-resize-changes-and-persists-sidebar-width", afterDrag === beforeDrag + 80
+        && Zotero.Prefs.get("extensions.zchatgptweb.sidebarWidth", true) === beforeDrag + 80
+        && samePdfAnchor(beforeDragAnchor, pdfAnchor(pdfReader)), { before: beforeDrag, after: afterDrag, events: "synthetic-pointer" });
+
+      resizer.dispatchEvent(new readerDoc.defaultView.KeyboardEvent("keydown", { bubbles: true, key: "ArrowLeft" }));
+      await delay(350);
+      await check("keyboard-resize-keeps-the-reader-accessible", actualWidth(dock).rectCss === afterDrag + 16, { before: afterDrag, after: actualWidth(dock).rectCss });
 
       const embed = await until(() => win.document.querySelector('[data-zchatgptweb-embed-browser]'), "product-official-chat-browser", 10000);
       const navigationStarted = Date.now();
@@ -245,6 +268,7 @@ function runHostInspection(config) {
         activeElement: activeElementSummary(readerDoc),
       };
       report.reader.anchorPreserved = samePdfAnchor(beforeAnchor, afterAnchor);
+      report.reader.horizontalAnchorStatus = beforeAnchor.anchor.left < 0 || afterAnchor.anchor.left < 0 ? "NOT RUN" : "PASS";
       await check("opening-sidebar-preserves-pdf-page-anchor", report.reader.anchorPreserved, { before: beforeAnchor, after: afterAnchor });
       report.reader.dock = {
         rect: box(dock),
@@ -270,6 +294,7 @@ function runHostInspection(config) {
         await delay(100);
         toggle.click();
         await until(() => toggle.getAttribute("aria-pressed") === "true", `reopen-at-width-${requestedWidth}`);
+        dock = await until(() => readerDoc.querySelector('[data-zchatgptweb-dock]'), `new-dock-at-width-${requestedWidth}`);
         await until(() => {
           const width = actualWidth(dock);
           return width.rectCss !== null && width.rectCss > 0;
@@ -302,6 +327,10 @@ function runHostInspection(config) {
         });
       }
       report.status = report.page.status === "PASS" ? "PASS" : "BLOCKED";
+      report.reader.mainViewport = { width: win.innerWidth, height: win.innerHeight };
+      report.reader.finalTabMatches = win.Zotero_Tabs.selectedID === opened?.tabID;
+      const currentEmbed = win.document.querySelector('[data-zchatgptweb-embed-browser][data-zchatgptweb-embed-painted]:not([data-zchatgptweb-embed-painted=""])');
+      report.reader.finalChatBrowser = box(currentEmbed);
       report.finishedAt = new Date().toISOString();
       await save();
     } catch (error) {

@@ -4,6 +4,7 @@ import { createWriteStream } from "node:fs";
 import { lstat, readFile, realpath } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { formatZoteroLaunchCommand, resolveZoteroExecutable } from "./host-launch.mjs";
 import yazl from "yazl";
 import { verifyXpi } from "./verify-artifacts.mjs";
 
@@ -22,7 +23,7 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index];
     if (flag === "--help" || flag === "-h") return { help: true };
-    if (!["--run-id", "--xpi"].includes(flag)) throw new Error(`Unknown option: ${flag}`);
+    if (!["--run-id", "--xpi", "--zotero"].includes(flag)) throw new Error(`Unknown option: ${flag}`);
     if (values.has(flag)) throw new Error(`Pass ${flag} only once`);
     const value = argv[index + 1];
     if (!value || value.startsWith("--")) throw new Error(`${flag} requires a value`);
@@ -31,9 +32,10 @@ function parseArgs(argv) {
   }
   const runId = values.get("--run-id");
   const xpiPath = values.get("--xpi");
+  const zoteroPath = values.get("--zotero");
   if (!runId || !xpiPath) throw new Error("Usage: node scripts/prepare-host-driver.mjs --run-id <dedicated-run-id> --xpi <final.xpi>");
   if (!runIdPattern.test(runId)) throw new Error("--run-id must be a lowercase name containing only letters, digits, and dashes");
-  return { runId, xpiPath: path.resolve(xpiPath) };
+  return { runId, xpiPath: path.resolve(xpiPath), ...(zoteroPath === undefined ? {} : { zoteroPath }) };
 }
 
 async function requireDirectory(directory, label) {
@@ -63,8 +65,10 @@ function writeDriverArchive(entries, destination) {
 }
 
 /** Prepare the ignored test-only XPI for one fresh, stopped, dedicated run. */
-export async function prepareHostDriver({ runId, xpiPath, repositoryRoot = root }) {
+/** @param {{ runId: string, xpiPath: string, repositoryRoot?: string, zoteroPath?: string, platform?: string, env?: NodeJS.ProcessEnv }} options */
+export async function prepareHostDriver({ runId, xpiPath, repositoryRoot = root, zoteroPath, platform = process.platform, env = process.env }) {
   if (!runIdPattern.test(runId)) throw new Error("Invalid dedicated run ID");
+  const zoteroExecutable = resolveZoteroExecutable({ platform, env, zoteroPath });
   const repo = await realpath(repositoryRoot);
   const testRoot = path.join(repo, ".zotero-chatgpt-web-test");
   const runDirectory = path.join(testRoot, runId);
@@ -147,7 +151,12 @@ export async function prepareHostDriver({ runId, xpiPath, repositoryRoot = root 
     runId, profile, data, reportPath, driverXpi,
     product: config.product,
     driver: { addonId, sourceSha256: sourceHash, xpiSha256: driverHash, files: allowedDriverFiles },
-    launchCommand: `'/Applications/Zotero.app/Contents/MacOS/zotero' -no-remote -profile '${profile.replaceAll("'", `'"'"'`)}' -datadir '${data.replaceAll("'", `'"'"'`)}'`,
+    launchCommand: formatZoteroLaunchCommand({
+      platform,
+      executable: zoteroExecutable,
+      profile,
+      data,
+    }),
   };
   return summary;
 }
@@ -156,7 +165,7 @@ if (path.resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url)) {
   try {
     const args = parseArgs(process.argv.slice(2));
     if (args.help) {
-      console.log("Prepare the test-only host driver for a stopped dedicated Zotero run.\nUsage: node scripts/prepare-host-driver.mjs --run-id <dedicated-run-id> --xpi <final.xpi>");
+      console.log("Prepare the test-only host driver for a stopped dedicated Zotero run.\nUsage: node scripts/prepare-host-driver.mjs --run-id <dedicated-run-id> --xpi <final.xpi> [--zotero <absolute-executable-path>]");
     } else {
       const result = await prepareHostDriver(args);
       console.log(`Prepared test-only driver: ${result.driverXpi}`);

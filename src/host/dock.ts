@@ -151,6 +151,7 @@ export function bindDockResize(resizer: HTMLElement, host: DockResizeHost): () =
     apply('aria-valuenow', Math.min(Math.max(Math.round(host.currentWidth()), min), max));
   };
   let dragging = false;
+  let activePointerId: number | null = null;
   let startX = 0;
   let startWidth = 0;
   let pendingWidth: number | null = null;
@@ -165,27 +166,34 @@ export function bindDockResize(resizer: HTMLElement, host: DockResizeHost): () =
     flush();
   };
   const onMove = (event: PointerEvent) => {
-    if (!dragging) return;
+    if (!dragging || event.pointerId !== activePointerId) return;
     event.preventDefault();
     schedule(startWidth + (startX - event.clientX));
   };
-  const onUp = (event: PointerEvent) => {
-    if (!dragging) return;
+  const finishPointer = (event: PointerEvent) => {
+    if (!dragging || event.pointerId !== activePointerId) return;
     dragging = false;
+    activePointerId = null;
     settle();
     try { resizer.releasePointerCapture(event.pointerId); } catch { /* capture may already be gone */ }
     doc.removeEventListener('pointermove', onMove);
     doc.removeEventListener('pointerup', onUp);
+    doc.removeEventListener('pointercancel', onCancel);
   };
+  const onUp = (event: PointerEvent) => finishPointer(event);
+  const onCancel = (event: PointerEvent) => finishPointer(event);
   const onDown = (event: PointerEvent) => {
+    if (event.button !== 0 || event.isPrimary === false) return;
     event.preventDefault();
     settle();
     dragging = true;
+    activePointerId = event.pointerId;
     startX = event.clientX;
     startWidth = host.currentWidth();
     try { resizer.setPointerCapture(event.pointerId); } catch { /* happy-dom / older Gecko */ }
     doc.addEventListener('pointermove', onMove);
     doc.addEventListener('pointerup', onUp);
+    doc.addEventListener('pointercancel', onCancel);
   };
   const onKeyDown = (event: KeyboardEvent) => {
     if (!RESIZE_KEYS.has(event.key) || event.defaultPrevented) return;
@@ -209,6 +217,7 @@ export function bindDockResize(resizer: HTMLElement, host: DockResizeHost): () =
   syncAria();
   return () => {
     dragging = false;
+    activePointerId = null;
     if (handle !== null) { drop(handle); handle = null; }
     pendingWidth = null;
     observer?.disconnect();
@@ -217,6 +226,7 @@ export function bindDockResize(resizer: HTMLElement, host: DockResizeHost): () =
     view?.removeEventListener?.('resize', syncAria);
     doc.removeEventListener('pointermove', onMove);
     doc.removeEventListener('pointerup', onUp);
+    doc.removeEventListener('pointercancel', onCancel);
   };
 }
 

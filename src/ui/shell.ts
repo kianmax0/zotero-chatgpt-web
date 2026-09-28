@@ -44,6 +44,9 @@ const ICONS: Record<string, string> = {
   settings: '<path d="M12 8.5a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7Z"/><path d="m19.4 15 .1.1 1.1.9-1.1 1.9-1.4-.5a7.8 7.8 0 0 1-1.4.8l-.3 1.5h-2.2l-.4-1.5a7.8 7.8 0 0 1-1.5-.1l-1.1 1-1.9-1.1.5-1.4a7.8 7.8 0 0 1-.8-1.4l-1.5-.3v-2.2l1.5-.4a7.8 7.8 0 0 1 .1-1.5l-1-1.1 1.1-1.9 1.4.5a7.8 7.8 0 0 1 1.4-.8l.3-1.5h2.2l.4 1.5a7.8 7.8 0 0 1 1.5.1l1.1-1 1.9 1.1-.5 1.4a7.8 7.8 0 0 1 .8 1.4l1.5.3v2.2l-1.5.4a7.8 7.8 0 0 1-.1 1.5Z" transform="translate(-1 -1) scale(.92)"/>',
   chat: '<path d="M20 11.5a7.5 7.5 0 0 1-7.5 7.5H5l1.2-3.2A7.5 7.5 0 1 1 20 11.5Z"/>',
   link: '<path d="M10 13a5 5 0 0 0 7.1 0l2-2A5 5 0 0 0 12 3.9l-1.1 1.1"/><path d="M14 11a5 5 0 0 0-7.1 0l-2 2A5 5 0 0 0 12 20.1l1.1-1.1"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8h.01"/>',
+  alert: '<path d="m10.3 3.9-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.7-3.1l-8-14a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>',
+  success: '<path d="m5 12 4 4L19 6"/>',
 };
 let menuSerial = 0;
 
@@ -110,9 +113,10 @@ export function mountShell(container: HTMLElement, options: ShellOptions): Shell
     button.type = 'button';
     button.className = 'zchatgptweb-shell__menu-item';
     button.setAttribute('role', 'menuitem');
+    button.setAttribute('aria-label', action.label);
     button.tabIndex = -1;
     button.title = action.title;
-    button.innerHTML = `${icon(action.icon)}<span>${action.label}</span>`;
+    button.innerHTML = icon(action.icon);
     button.addEventListener('click', () => {
       closeMenu(false);
       action.run();
@@ -121,25 +125,21 @@ export function mountShell(container: HTMLElement, options: ShellOptions): Shell
     return button;
   });
 
-  const disclosure = doc.createElement('details');
-  disclosure.className = 'zchatgptweb-shell__disclosure';
-  const disclosureSummary = doc.createElement('summary');
-  disclosureSummary.textContent = 'About context';
-  const disclosureText = doc.createElement('p');
-  disclosureText.textContent = 'Bibliographic details and the saved abstract are prepared for a deliberate ChatGPT send when automatic context is on. The PDF body is not included by default. A selected passage is separate; local reading does not send it.';
-  disclosure.append(disclosureSummary, disclosureText);
-
   const notice = doc.createElement('div');
   notice.className = 'zchatgptweb-shell__notice';
   notice.hidden = true;
   notice.setAttribute('role', 'status');
   notice.setAttribute('aria-live', 'polite');
+  const noticeIcon = doc.createElement('span');
+  noticeIcon.className = 'zchatgptweb-shell__notice-icon';
+  noticeIcon.setAttribute('aria-hidden', 'true');
   const noticeText = doc.createElement('span');
+  noticeText.className = 'zchatgptweb-visually-hidden';
   const noticeAction = doc.createElement('button');
   noticeAction.type = 'button';
-  noticeAction.className = 'zchatgptweb-shell__notice-action';
+  noticeAction.className = 'zchatgptweb-shell__icon-button zchatgptweb-shell__notice-action';
   noticeAction.hidden = true;
-  notice.append(noticeText, noticeAction);
+  notice.append(noticeIcon, noticeText, noticeAction);
 
   const anchor = doc.createElement('div');
   anchor.className = 'zchatgptweb-shell__anchor';
@@ -195,9 +195,9 @@ export function mountShell(container: HTMLElement, options: ShellOptions): Shell
   const bar = doc.createElement('div');
   bar.className = 'zchatgptweb-shell__bar';
   bar.append(identity, tools);
-  tools.append(menuButton, closeButton);
-  header.append(bar, disclosure);
-  root.append(header, notice, anchor, menu);
+  tools.append(notice, menuButton, closeButton);
+  header.append(bar);
+  root.append(header, anchor, menu);
   container.replaceChildren(root);
   setIdentity(options.title, options.attachmentTitle);
 
@@ -210,12 +210,23 @@ export function mountShell(container: HTMLElement, options: ShellOptions): Shell
 
   function status(text: string, tone: StatusTone = 'info', action?: { label: string; run: () => void }): void {
     noticeText.textContent = text;
+    notice.setAttribute('aria-label', text);
+    notice.title = text;
     notice.dataset.tone = tone;
     notice.setAttribute('role', tone === 'error' ? 'alert' : 'status');
     notice.setAttribute('aria-live', tone === 'error' ? 'assertive' : 'polite');
+    noticeIcon.innerHTML = icon(tone === 'error' ? 'alert' : tone === 'success' ? 'success' : 'info');
     notice.hidden = !text;
     noticeAction.hidden = !text || !action;
-    noticeAction.textContent = action?.label ?? '';
+    if (action) {
+      noticeAction.setAttribute('aria-label', action.label);
+      noticeAction.title = action.label;
+      noticeAction.innerHTML = icon('reload');
+    } else {
+      noticeAction.removeAttribute('aria-label');
+      noticeAction.removeAttribute('title');
+      noticeAction.replaceChildren();
+    }
     noticeAction.onclick = action ? () => action.run() : null;
   }
 

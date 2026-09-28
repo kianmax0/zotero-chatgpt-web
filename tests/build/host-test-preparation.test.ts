@@ -3,6 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { packageExtension } from "../../scripts/package.mjs";
+import { formatZoteroLaunchCommand, resolveZoteroExecutable } from "../../scripts/host-launch.mjs";
+import { prepareHostDriver } from "../../scripts/prepare-host-driver.mjs";
 import { prepareHostTest } from "../../scripts/prepare-host-test.mjs";
 import { createFixturePdf } from "../fixtures/create-pdf.mjs";
 
@@ -44,6 +46,31 @@ describe("isolated Zotero host fixture preparation", () => {
 
   afterEach(async () => rm(temporaryRoot, { recursive: true, force: true }));
 
+  it("selects native Zotero executable defaults for macOS, Windows, and Linux", () => {
+    expect(resolveZoteroExecutable({ platform: "darwin" })).toBe("/Applications/Zotero.app/Contents/MacOS/zotero");
+    expect(resolveZoteroExecutable({ platform: "win32", env: { ProgramFiles: "D:\\Apps" } }))
+      .toBe("D:\\Apps\\Zotero\\zotero.exe");
+    expect(resolveZoteroExecutable({ platform: "linux" })).toBe("zotero");
+  });
+
+  it("requires an absolute executable override and quotes paths for each shell", () => {
+    expect(resolveZoteroExecutable({ platform: "win32", zoteroPath: "D:\\Portable Apps\\Zotero\\zotero.exe" }))
+      .toBe("D:\\Portable Apps\\Zotero\\zotero.exe");
+    expect(() => resolveZoteroExecutable({ platform: "win32", zoteroPath: ".\\zotero.exe" })).toThrow(/absolute/u);
+    expect(formatZoteroLaunchCommand({
+      platform: "win32",
+      executable: "C:\\Zotero's\\zotero.exe",
+      profile: "C:\\Users\\O'Connor\\profile",
+      data: "C:\\Users\\O'Connor\\data",
+    })).toBe("& 'C:\\Zotero''s\\zotero.exe' -no-remote -profile 'C:\\Users\\O''Connor\\profile' -datadir 'C:\\Users\\O''Connor\\data'");
+    expect(formatZoteroLaunchCommand({
+      platform: "linux",
+      executable: "zotero",
+      profile: "/tmp/O'Connor profile",
+      data: "/tmp/data",
+    })).toBe("'zotero' -no-remote -profile '/tmp/O'\\''Connor profile' -datadir '/tmp/data'");
+  });
+
   it("installs the verified candidate into a new isolated tree with unique synthetic PDFs", async () => {
     const result = await prepareHostTest({ repositoryRoot: temporaryRoot, xpiPath, runId: "fresh-reader-run" });
     expect(result.runDirectory).toBe(path.join(temporaryRoot, ".zotero-chatgpt-web-test", "fresh-reader-run"));
@@ -68,6 +95,26 @@ describe("isolated Zotero host fixture preparation", () => {
       expect(pdf.subarray(0, 8).toString("ascii")).toBe("%PDF-1.4");
       expect(pdf.toString("latin1")).toContain(fixture.verificationToken);
     }
+  });
+
+  it("uses the requested Zotero executable for the generated launch command", async () => {
+    const result = await prepareHostTest({
+      repositoryRoot: temporaryRoot,
+      xpiPath,
+      runId: "custom-zotero-path",
+      zoteroPath: "/opt/Zotero Custom/zotero",
+      platform: "linux",
+    });
+    expect(result.launchCommand).toMatch(/^'\/opt\/Zotero Custom\/zotero' -no-remote/u);
+
+    const driver = await prepareHostDriver({
+      repositoryRoot: temporaryRoot,
+      xpiPath,
+      runId: "custom-zotero-path",
+      zoteroPath: "/opt/Zotero Custom/zotero",
+      platform: "linux",
+    });
+    expect(driver.launchCommand).toBe(result.launchCommand);
   });
 
   it("refuses to reuse an existing named run without changing its contents", async () => {

@@ -87,15 +87,6 @@ export class ZoteroChatGPTWebOfficialChatChild extends JSWindowActorChild {
     const formEditors = buttonForm ? editors.filter(editor => buttonForm.contains(editor)) : [];
     const targetForm = event.type === 'submit' ? event.target : null;
     const submittedEditors = targetForm ? editors.filter(editor => targetForm.contains?.(editor)) : [];
-    const unsupportedDraftEditors = result.status === 'found' ? [] : editors.filter(editor => readChatGPTComposer(editor).trim());
-    if (event.type === 'click' && unsupportedDraftEditors.length
-        && !unsupportedDraftEditors.some(editor => inside(event.target, editor))) {
-      event.preventDefault();
-      event.stopImmediatePropagation?.();
-      event.stopPropagation?.();
-      this.blocked(result.status === 'ambiguous-composer' ? 'ambiguous-composer' : 'unsupported-composer');
-      return;
-    }
     let composer = null;
     let draft = '';
     let manualAttempt = false;
@@ -108,10 +99,6 @@ export class ZoteroChatGPTWebOfficialChatChild extends JSWindowActorChild {
       draft = composer ? readChatGPTComposer(composer) : firstDraft(targeted);
     } else if (event.type === 'click' && button) {
       manualAttempt = isKnownSendControl(button) || isSubmitControl(button);
-      if (!manualAttempt && formEditors.length && firstDraft(formEditors)) {
-        const send = formEditors.length === 1 ? inspectChatGPTSendControl(this.document, formEditors[0]) : { status: 'ambiguous-send' };
-        manualAttempt = send.status !== 'found';
-      }
       if (!manualAttempt && result.status === 'found') {
         const send = inspectChatGPTSendControl(this.document, result.composer);
         manualAttempt = send.status === 'found' && send.control === button;
@@ -172,7 +159,7 @@ export class ZoteroChatGPTWebOfficialChatChild extends JSWindowActorChild {
     if (content.trim()) return { status: 'draft', structure };
     const send = inspectChatGPTSendControl(this.document, composer.composer);
     if (send.status === 'ambiguous-send') return { status: 'ambiguous-send', structure };
-    if (send.status !== 'found') return { status: 'unsupported-send', structure };
+    if (send.status !== 'found') return { status: 'composer-ready', structure };
     return { status: 'ready', structure };
   }
 
@@ -213,7 +200,11 @@ export class ZoteroChatGPTWebOfficialChatChild extends JSWindowActorChild {
       if (!originalComposer) return this.blocked('unsupported-composer', transaction);
       if (originalDraft.trim() && originalDraft !== question) return this.blocked('draft-changed', transaction);
       const initialSend = inspectChatGPTSendControl(originalDocument, originalComposer);
-      if (initialSend.status !== 'found') return this.blocked(initialSend.status === 'ambiguous-send' ? 'ambiguous-send' : 'unsupported-send', transaction);
+      if (initialSend.status === 'ambiguous-send') return this.blocked('ambiguous-send', transaction);
+      // ChatGPT can replace its voice control with Send only after the empty editor receives input.
+      // Keep existing drafts untouched if their send control is unknown; a new frozen question can
+      // be inserted and checked by waitForSend before its one deliberate click.
+      if (initialSend.status !== 'found' && originalDraft.trim()) return this.blocked('unsupported-send', transaction);
 
       let prepared;
       try { prepared = await this.sendQuery('prepare', { question, transaction }); }

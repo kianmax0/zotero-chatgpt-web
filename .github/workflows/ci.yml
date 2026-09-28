@@ -8,10 +8,15 @@ permissions:
   contents: read
 
 jobs:
-  check:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+  package:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
+      - run: git config --global core.autocrlf false
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
@@ -21,18 +26,40 @@ jobs:
       - run: npm run typecheck
       - run: npm run lint
       - run: npm run test:unit
-
-  package:
-    needs: check
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-      - run: npm ci
       - run: npm run package:dev
-      - run: npm run test:unit
       - run: npm run verify:artifacts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: xpi-${{ matrix.os }}
+          path: |
+            dist/*.xpi
+            dist/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 7
+
+  compare-packages:
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: xpi-*
+          path: artifacts
+      - name: Check all hosts produced the same XPI
+        run: |
+          node --input-type=module -e '
+            import { readdir, readFile } from "node:fs/promises";
+            import { createHash } from "node:crypto";
+            import path from "node:path";
+            const dirs = await readdir("artifacts");
+            if (dirs.length !== 3) throw new Error(`Expected 3 platform artifacts, found ${dirs.length}`);
+            const digests = [];
+            for (const dir of dirs) {
+              const files = await readdir(path.join("artifacts", dir));
+              const xpi = files.find(file => file.endsWith(".xpi"));
+              if (!xpi) throw new Error(`No XPI in ${dir}`);
+              digests.push(createHash("sha256").update(await readFile(path.join("artifacts", dir, xpi))).digest("hex"));
+            }
+            if (new Set(digests).size !== 1) throw new Error(`Platform XPI hashes differ: ${digests.join(", ")}`);
+            console.log(`All three platforms produced the same XPI: ${digests[0]}`);
+          '

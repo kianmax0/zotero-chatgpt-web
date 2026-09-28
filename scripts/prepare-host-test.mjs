@@ -4,14 +4,11 @@ import { lstat, mkdir, readFile, realpath, rm, writeFile } from "node:fs/promise
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createFixturePdf } from "../tests/fixtures/create-pdf.mjs";
+import { formatZoteroLaunchCommand, resolveZoteroExecutable } from "./host-launch.mjs";
 import { verifyXpi } from "./verify-artifacts.mjs";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const runIdPattern = /^[a-z0-9][a-z0-9-]{0,47}$/u;
-
-function shellQuote(value) {
-  return `'${value.replaceAll("'", `'"'"'`)}'`;
-}
 
 async function exists(pathname) {
   try { await lstat(pathname); return true; }
@@ -23,7 +20,7 @@ function parseArgs(argv) {
   for (let index = 0; index < argv.length; index += 1) {
     const flag = argv[index];
     if (flag === "--help" || flag === "-h") return { help: true };
-    if (!["--xpi", "--run-id"].includes(flag)) throw new Error(`Unknown option: ${flag}`);
+    if (!["--xpi", "--run-id", "--zotero"].includes(flag)) throw new Error(`Unknown option: ${flag}`);
     if (values.has(flag)) throw new Error(`Pass ${flag} only once`);
     const value = argv[index + 1];
     if (!value || value.startsWith("--")) throw new Error(`${flag} requires a value`);
@@ -32,8 +29,9 @@ function parseArgs(argv) {
   }
   const xpiPath = values.get("--xpi");
   const runId = values.get("--run-id");
+  const zoteroPath = values.get("--zotero");
   if (!xpiPath || !runId) throw new Error("Usage: node scripts/prepare-host-test.mjs --xpi <final.xpi> --run-id <new-run-id>");
-  return { xpiPath: path.resolve(xpiPath), runId };
+  return { xpiPath: path.resolve(xpiPath), runId, ...(zoteroPath === undefined ? {} : { zoteroPath }) };
 }
 
 function assertRunId(runId) {
@@ -73,8 +71,10 @@ function makePreferences(dataDirectory) {
 }
 
 /** Create one new profile and data directory owned by this repository. Never reuses a profile. */
-export async function prepareHostTest({ xpiPath, runId, repositoryRoot = projectRoot }) {
+/** @param {{ xpiPath: string, runId: string, repositoryRoot?: string, zoteroPath?: string, platform?: string, env?: NodeJS.ProcessEnv }} options */
+export async function prepareHostTest({ xpiPath, runId, repositoryRoot = projectRoot, zoteroPath, platform = process.platform, env = process.env }) {
   assertRunId(runId);
+  const zoteroExecutable = resolveZoteroExecutable({ platform, env, zoteroPath });
   const repo = await realpath(repositoryRoot);
   const testRoot = path.join(repo, ".zotero-chatgpt-web-test");
   const runDirectory = path.join(testRoot, runId);
@@ -127,7 +127,12 @@ export async function prepareHostTest({ xpiPath, runId, repositoryRoot = project
     return {
       runId, runDirectory, profile, data, fixtures,
       xpi: { path: absoluteXpi, addonId, version: verified.manifest.version, sha256: digest },
-      launchCommand: `${shellQuote("/Applications/Zotero.app/Contents/MacOS/zotero")} -no-remote -profile ${shellQuote(profile)} -datadir ${shellQuote(data)}`,
+      launchCommand: formatZoteroLaunchCommand({
+        platform,
+        executable: zoteroExecutable,
+        profile,
+        data,
+      }),
     };
   } catch (error) {
     // Only remove the run directory that this invocation atomically created.
@@ -140,7 +145,7 @@ if (path.resolve(process.argv[1] ?? "") === fileURLToPath(import.meta.url)) {
   try {
     const args = parseArgs(process.argv.slice(2));
     if (args.help) {
-      console.log("Prepare a fresh, isolated Zotero profile with a verified XPI and synthetic PDFs.\nUsage: node scripts/prepare-host-test.mjs --xpi <final.xpi> --run-id <new-run-id>");
+      console.log("Prepare a fresh, isolated Zotero profile with a verified XPI and synthetic PDFs.\nUsage: node scripts/prepare-host-test.mjs --xpi <final.xpi> --run-id <new-run-id> [--zotero <absolute-executable-path>]");
     } else {
       const result = await prepareHostTest(args);
       console.log(`Prepared isolated test run: ${result.runDirectory}`);
