@@ -8,7 +8,9 @@ import { PRODUCT_ID, validateExtensionDirectory } from "./verify-artifacts.mjs";
 
 const root = path.resolve(import.meta.dirname, "..");
 const sourceDefault = path.join(root, "build/extension");
-const fixedTimestamp = new Date("1980-01-01T00:00:00.000Z");
+// yazl encodes DOS timestamps from local Date fields, so construct local midnight
+// to keep the archive bytes stable across time zones.
+const fixedTimestamp = new Date(1980, 0, 1, 0, 0, 0, 0);
 
 async function listFiles(directory, prefix = "") {
   const files = [];

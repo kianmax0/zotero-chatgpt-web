@@ -1,6 +1,8 @@
 import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { packageExtension } from "../../scripts/package.mjs";
 import { verifyXpi } from "../../scripts/verify-artifacts.mjs";
@@ -55,6 +57,21 @@ describe("XPI packaging", () => {
     expect(verified.manifest.applications.zotero.id).toBe(productId);
     expect(verified.files).toContain("content/actors/ChatGPTWebChild.mjs");
     expect(verified.files.some(file => file.includes("runtime"))).toBe(false);
+  });
+
+  it("produces identical XPI bytes when packaged under different time zones", async () => {
+    const packageScript = fileURLToPath(new URL("../../scripts/package.mjs", import.meta.url));
+    const archives: Buffer[] = [];
+    for (const timezone of ["UTC", "Asia/Shanghai"]) {
+      const destination = path.join(temporaryRoot, timezone.replaceAll("/", "-"), "addon.xpi");
+      const result = spawnSync(process.execPath, [packageScript, "--source", source, "--output", destination], {
+        encoding: "utf8",
+        env: { ...process.env, TZ: timezone },
+      });
+      expect(result.status, result.stderr || result.stdout).toBe(0);
+      archives.push(await readFile(destination));
+    }
+    expect(archives[1]).toEqual(archives[0]);
   });
 
   it("rejects runtime assets before packaging", async () => {
